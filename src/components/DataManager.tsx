@@ -162,15 +162,16 @@ const DataManager: React.FC = () => {
                 style={{ width: isExpanded ? '350px' : '180px', x: pos.x, y: pos.y }}
               >
                 {/* أيقونة Move: ثابتة في مكانها، تتحكم في سحب الكارت */}
-                <motion.div
-                  dragControls={dragControls}
-                  dragListener={true} // السحب يبدأ من هنا
-                  className="w-4 h-4 absolute top-2 right-2 cursor-grab z-10"
-                  onPointerDown={(e) => dragControls.start(e)}
-                >
-                  <Move className="w-4 h-4 text-gray-500" />
-                </motion.div>
-
+                {!isExpanded && (
+  <motion.div
+    dragControls={dragControls}
+    dragListener={true} // السحب يبدأ من هنا
+    className="w-4 h-4 absolute top-2 right-2 cursor-grab z-10"
+    onPointerDown={(e) => dragControls.start(e)}
+  >
+    <Move className="w-4 h-4 text-gray-500" />
+  </motion.div>
+)}
                 {/* محتوى الكارت */}
                 <div className="flex items-start justify-between">
                   <div className="flex items-start space-x-3 flex-1 min-w-0">
