@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useDragControls } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { useDevice } from '../context/DeviceContext';
 import { dataService } from '../services/dataService';
@@ -13,6 +13,7 @@ const DataManager: React.FC = () => {
   const { user } = useAuth();
   const { deviceId } = useDevice();
   const { showToast } = useToast();
+  const dragControls = useDragControls(); // تحكم بالسحب للكارت
 
   const [dataItems, setDataItems] = useState<DataItem[]>([]);
   const [filteredItems, setFilteredItems] = useState<DataItem[]>([]);
@@ -26,6 +27,7 @@ const DataManager: React.FC = () => {
   const [linkStatus, setLinkStatus] = useState<Record<string, boolean>>({});
   const [draggedPositions, setDraggedPositions] = useState<Record<string, { x: number; y: number }>>({});
 
+  // تحميل البيانات من السيرفر
   useEffect(() => {
     if (!user) return;
     setLoading(true);
@@ -40,6 +42,7 @@ const DataManager: React.FC = () => {
       .finally(() => setLoading(false));
   }, [user]);
 
+  // تصفية البيانات حسب البحث أو النوع
   useEffect(() => {
     let filtered = dataItems;
     if (selectedType !== 'all') filtered = filtered.filter(item => item.type === selectedType);
@@ -54,6 +57,7 @@ const DataManager: React.FC = () => {
     setFilteredItems(filtered);
   }, [dataItems, selectedType, searchQuery]);
 
+  // نسخ رابط NFC
   const copyNFCLink = async (item: DataItem) => {
     if (!linkStatus[item.id]) {
       showToast('error', 'Link Disabled', 'This NFC link is currently turned off');
@@ -69,6 +73,7 @@ const DataManager: React.FC = () => {
     }
   };
 
+  // حفظ تعديل بيانات
   const handleEditSave = async (updatedData: Partial<DataItem>, newFile?: File) => {
     if (!editingItem) return;
     try {
@@ -82,6 +87,7 @@ const DataManager: React.FC = () => {
     }
   };
 
+  // حذف عنصر
   const deleteItem = async (id: string) => {
     if (!confirm('Are you sure you want to delete this item?')) return;
     try {
@@ -93,6 +99,7 @@ const DataManager: React.FC = () => {
     }
   };
 
+  // تحويل حجم الملف إلى نص
   const formatFileSize = (bytes?: number) => {
     if (!bytes) return 'N/A';
     const k = 1024;
@@ -105,7 +112,7 @@ const DataManager: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Top Controls */}
+      {/* شريط البحث وإضافة عنصر */}
       <div className="flex items-center justify-between space-x-2 pr-4 pl-4"> 
         <input
           type="text"
@@ -123,7 +130,7 @@ const DataManager: React.FC = () => {
         </button>
       </div>
 
-      {/* Data Items */}
+      {/* عرض العناصر */}
       {filteredItems.length === 0 ? (
         <div className="card p-4 text-center text-gray-400">
           <h3 className="text-lg font-medium">No items found</h3>
@@ -140,22 +147,26 @@ const DataManager: React.FC = () => {
               <motion.div
                 key={item.id}
                 layout
-                drag={false} // الكارت نفسه مش draggable
+                drag // الكارت نفسه draggable
+                dragControls={dragControls} // التحكم بالسحب من الأيقونة فقط
+                dragListener={false} // السحب لا يبدأ إلا من dragControls.start
+                dragMomentum={false}
+                dragConstraints={{ left: -1000, right: 1000, top: -1000, bottom: 1000 }}
+                onDragEnd={(_, info) =>
+                  setDraggedPositions(prev => ({ ...prev, [item.id]: { x: info.point.x, y: info.point.y } }))
+                }
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 className={`card p-2 hover:shadow-lg transition-shadow relative`}
                 style={{ width: isExpanded ? '350px' : '180px', x: pos.x, y: pos.y }}
               >
-                {/* Move Icon */}
+                {/* أيقونة Move: ثابتة في مكانها، تتحكم في سحب الكارت */}
                 <motion.div
-                  drag
-                  dragMomentum={false}
-                  dragConstraints={{ left: -1000, right: 1000, top: -1000, bottom: 1000 }}
-                  onDrag={(_e, info) =>
-                    setDraggedPositions(prev => ({ ...prev, [item.id]: { x: info.point.x, y: info.point.y } }))
-                  }
+                  dragControls={dragControls}
+                  dragListener={true} // السحب يبدأ من هنا
                   className="w-4 h-4 absolute top-2 right-2 cursor-grab z-10"
+                  onPointerDown={(e) => dragControls.start(e)}
                 >
                   <Move className="w-4 h-4 text-gray-500" />
                 </motion.div>
@@ -216,7 +227,7 @@ const DataManager: React.FC = () => {
         </div>
       )}
 
-      {/* Edit Modal */}
+      {/* نافذة تعديل البيانات */}
       {editingItem && (
         <EditDataModal
           isOpen={!!editingItem}
@@ -226,7 +237,7 @@ const DataManager: React.FC = () => {
         />
       )}
 
-      {/* Add Data Modal */}
+      {/* نافذة إضافة عنصر جديد */}
       {showAddModal && (
         <EditDataModal
           isOpen={showAddModal}
