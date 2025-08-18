@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, useDragControls } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { useDevice } from '../context/DeviceContext';
@@ -9,32 +9,26 @@ import { Plus, Edit, Trash2, Link, Check, Move } from 'lucide-react';
 import EditDataModal from './EditDataModal';
 import { useToast } from '../hooks/useToast';
 
-/** ----------------------- إعدادات الكاتيجوري ----------------------- **/
-const CATEGORY_ORDER: DataType[] = [
-  'id_card',
-  'license',
-  'photo',
-  'document',
-  'other',
-];
+const CATEGORY_ORDER: Array<DataType | 'other'> = ['id_card', 'license', 'photo', 'document', 'other'];
 
-const CATEGORY_LABELS: Record<DataType, string> = {
+const CATEGORY_LABELS: Record<string, string> = {
   id_card: 'ID Cards',
   license: 'License',
   photo: 'Photos',
   document: 'Documents',
   other: 'Others',
 };
-/** ------------------------------------------------------------------ **/
 
-/** ----------------------- كارت قابل للسحب (لكل عنصر) ----------------------- **/
 type Position = { x: number; y: number };
 
-const DraggableCard: React.FC<{
+type DraggableCardProps = {
   item: DataItem;
   isActive: boolean;
   isExpanded: boolean;
   pos: Position;
+  index: number;
+  categoryItems: DataItem[];
+  onSwap: (fromIndex: number, toIndex: number, categoryItems: DataItem[]) => void;
   copiedLink: string | null;
   formatFileSize: (bytes?: number) => string;
   onToggleExpand: (id: string) => void;
@@ -42,12 +36,16 @@ const DraggableCard: React.FC<{
   onDelete: (id: string) => void;
   onEdit: (item: DataItem) => void;
   onToggleLinkStatus: (id: string) => void;
-  onDragEnd: (id: string, x: number, y: number) => void;
-}> = ({
+};
+
+const DraggableCard: React.FC<DraggableCardProps> = ({
   item,
   isActive,
   isExpanded,
   pos,
+  index,
+  categoryItems,
+  onSwap,
   copiedLink,
   formatFileSize,
   onToggleExpand,
@@ -55,28 +53,47 @@ const DraggableCard: React.FC<{
   onDelete,
   onEdit,
   onToggleLinkStatus,
-  onDragEnd,
 }) => {
-  const dragControls = useDragControls(); // لكل كارت كنترول خاص به
+  const dragControls = useDragControls();
   const typeConfig = getDataTypeConfig(item.type);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const handleDrag = (event: any, info: any) => {
+    if (!ref.current) return;
+    const parent = ref.current.parentElement;
+    if (!parent) return;
+
+    const siblings = Array.from(parent.children) as HTMLDivElement[];
+    siblings.forEach((sib, sibIndex) => {
+      if (sib === ref.current) return;
+      const rect = sib.getBoundingClientRect();
+      const currentRect = ref.current!.getBoundingClientRect();
+
+      const overlapX =
+        Math.min(currentRect.right, rect.right) - Math.max(currentRect.left, rect.left);
+
+      if (overlapX > rect.width / 4) { // ربع العرض للتبديل
+        onSwap(index, sibIndex, categoryItems);
+      }
+    });
+  };
 
   return (
     <motion.div
-      key={item.id}
+      ref={ref}
       layout
-      drag
+      drag="x"
       dragControls={dragControls}
-      dragListener={false} // السحب لا يبدأ إلا من الهاندل
+      dragListener={false}
       dragMomentum={false}
-      dragConstraints={{ left: -1000, right: 1000, top: -1000, bottom: 1000 }}
-      onDragEnd={(_, info) => onDragEnd(item.id, info.point.x, info.point.y)}
-      initial={{ opacity: 0, y: 20 }}
+      onDrag={handleDrag}
+      initial={{ opacity: 0, y: 0 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="card p-2 hover:shadow-lg transition-shadow relative"
+      exit={{ opacity: 0, y: 0 }}
+      whileDrag={{ opacity: 0.6 }} // شفاف أثناء الهولد
+      className="card p-2 hover:shadow-lg transition-shadow relative select-none"
       style={{ width: isExpanded ? '350px' : '180px', x: pos.x, y: pos.y }}
     >
-      {/* أيقونة Move (هاندل السحب) */}
       {!isExpanded && (
         <motion.div
           dragControls={dragControls}
@@ -88,23 +105,20 @@ const DraggableCard: React.FC<{
         </motion.div>
       )}
 
-      {/* محتوى الكارت */}
       <div className="flex items-start justify-between">
         <div className="flex items-start space-x-3 flex-1 min-w-0">
           <motion.div
-            whileHover={{ scale: 1.1, rotate: 5 }}
+            whileHover={{ scale: 1.05, rotate: 3 }}
             className={`w-10 h-10 rounded-lg ${typeConfig.color} flex items-center justify-center text-white text-lg flex-shrink-0 cursor-pointer`}
             onClick={() => onToggleExpand(item.id)}
             title="Show Info"
           >
             {typeConfig.icon}
           </motion.div>
-
           <div className="min-w-0 flex-1 text-center">
             <h3 className="font-semibold text-gray-800 truncate">
               {item.fileName || item.name || 'Untitled'}
             </h3>
-
             {isExpanded && (
               <div className="mt-2 space-y-1 text-sm text-gray-600 text-left">
                 <p>ID: {item.name}</p>
@@ -123,17 +137,11 @@ const DraggableCard: React.FC<{
         {isExpanded && (
           <div className="flex flex-col items-center space-y-2 flex-shrink-0 ml-4">
             <div className="flex items-center space-x-2">
-              <button
-                onClick={() => onEdit(item)}
-                className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg"
-              >
+              <button onClick={() => onEdit(item)} className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg">
                 <Edit className="w-4 h-4" />
               </button>
 
-              <button
-                onClick={() => onCopyLink(item)}
-                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-              >
+              <button onClick={() => onCopyLink(item)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
                 {copiedLink === item.nfcLink ? (
                   <Check className="w-4 h-4 text-green-600" />
                 ) : (
@@ -141,10 +149,7 @@ const DraggableCard: React.FC<{
                 )}
               </button>
 
-              <button
-                onClick={() => onDelete(item.id)}
-                className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-              >
+              <button onClick={() => onDelete(item.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>
@@ -170,7 +175,6 @@ const DraggableCard: React.FC<{
     </motion.div>
   );
 };
-/** ------------------------------------------------------------------------ **/
 
 const DataManager: React.FC = () => {
   const { user } = useAuth();
@@ -187,11 +191,8 @@ const DataManager: React.FC = () => {
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [linkStatus, setLinkStatus] = useState<Record<string, boolean>>({});
-  const [draggedPositions, setDraggedPositions] = useState<
-    Record<string, { x: number; y: number }>
-  >({});
+  const [draggedPositions, setDraggedPositions] = useState<Record<string, Position>>({});
 
-  // تحميل البيانات من السيرفر
   useEffect(() => {
     if (!user) return;
     setLoading(true);
@@ -203,17 +204,13 @@ const DataManager: React.FC = () => {
         items.forEach((item) => (status[item.id] = true));
         setLinkStatus(status);
       })
-      .catch(() =>
-        showToast('error', 'Loading Error', 'Error loading your data.')
-      )
+      .catch(() => showToast('error', 'Loading Error', 'Error loading your data.'))
       .finally(() => setLoading(false));
   }, [user]);
 
-  // تصفية البيانات حسب البحث أو النوع
   useEffect(() => {
     let filtered = dataItems;
-    if (selectedType !== 'all')
-      filtered = filtered.filter((item) => item.type === selectedType);
+    if (selectedType !== 'all') filtered = filtered.filter((item) => item.type === selectedType);
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       filtered = filtered.filter(
@@ -226,7 +223,6 @@ const DataManager: React.FC = () => {
     setFilteredItems(filtered);
   }, [dataItems, selectedType, searchQuery]);
 
-  // نسخ رابط NFC
   const copyNFCLink = async (item: DataItem) => {
     if (!linkStatus[item.id]) {
       showToast('error', 'Link Disabled', 'This NFC link is currently turned off');
@@ -242,19 +238,12 @@ const DataManager: React.FC = () => {
     }
   };
 
-  // حفظ تعديل بيانات
   const handleEditSave = async (updatedData: Partial<DataItem>, newFile?: File) => {
     if (!editingItem) return;
     try {
-      const updatedItem = await dataService.updateDataItemWithFile(
-        editingItem.id,
-        updatedData,
-        newFile
-      );
+      const updatedItem = await dataService.updateDataItemWithFile(editingItem.id, updatedData, newFile);
       if (updatedItem) {
-        setDataItems((prev) =>
-          prev.map((it) => (it.id === editingItem.id ? updatedItem : it))
-        );
+        setDataItems((prev) => prev.map((it) => (it.id === editingItem.id ? updatedItem : it)));
         setEditingItem(null);
       }
     } catch {
@@ -262,7 +251,6 @@ const DataManager: React.FC = () => {
     }
   };
 
-  // حذف عنصر
   const deleteItem = async (id: string) => {
     if (!confirm('Are you sure you want to delete this item?')) return;
     try {
@@ -274,7 +262,6 @@ const DataManager: React.FC = () => {
     }
   };
 
-  // تحويل حجم الملف إلى نص
   const formatFileSize = (bytes?: number) => {
     if (!bytes) return 'N/A';
     const k = 1024;
@@ -283,26 +270,22 @@ const DataManager: React.FC = () => {
     return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i];
   };
 
-  // هندلرز بسيطة علشان نمررها للكارت
-  const onToggleExpand = (id: string) =>
-    setExpandedItemId((prev) => (prev === id ? null : id));
+  const onToggleExpand = (id: string) => setExpandedItemId((prev) => (prev === id ? null : id));
+  const onToggleLinkStatus = (id: string) => setLinkStatus((prev) => ({ ...prev, [id]: !prev[id] }));
 
-  const onToggleLinkStatus = (id: string) =>
-    setLinkStatus((prev) => ({ ...prev, [id]: !prev[id] }));
+  const swapItems = (fromIndex: number, toIndex: number, categoryItems: DataItem[]) => {
+    if (fromIndex === toIndex) return;
+    const newArr = [...categoryItems];
+    const temp = newArr[fromIndex];
+    newArr[fromIndex] = newArr[toIndex];
+    newArr[toIndex] = temp;
+    return newArr;
+  };
 
-  const onCardDragEnd = (id: string, x: number, y: number) =>
-    setDraggedPositions((prev) => ({ ...prev, [id]: { x, y } }));
-
-  if (loading)
-    return (
-      <div className="flex items-center justify-center p-8 text-gray-600">
-        Loading your data...
-      </div>
-    );
+  if (loading) return <div className="flex items-center justify-center p-8 text-gray-600">Loading your data...</div>;
 
   return (
     <div className="space-y-8">
-      {/* شريط البحث وإضافة عنصر */}
       <div className="flex items-center justify-between space-x-2 pr-4 pl-4">
         <input
           type="text"
@@ -320,26 +303,21 @@ const DataManager: React.FC = () => {
         </button>
       </div>
 
-      {/* الأقسام حسب الكاتيجوري */}
       {CATEGORY_ORDER.map((category) => {
         const items = filteredItems.filter((it) => it.type === category);
         const hasItems = items.length > 0;
 
         return (
           <section key={category} className="space-y-3">
-            {/* عنوان القسم */}
             <div className="flex items-center justify-between px-4">
-              <h2 className="text-lg font-semibold text-gray-800">
-                {CATEGORY_LABELS[category]}
-              </h2>
+              <h2 className="text-lg font-semibold text-gray-800">{CATEGORY_LABELS[category]}</h2>
               <span className="text-sm text-gray-500">({items.length})</span>
             </div>
 
-            {/* كروت القسم جنب بعض */}
             <div className="px-4">
               {hasItems ? (
-                <div className="flex flex-wrap gap-3">
-                  {items.map((item) => {
+                <div className="flex flex-row gap-3 overflow-x-auto py-2">
+                  {items.map((item, index) => {
                     const isActive = linkStatus[item.id] ?? true;
                     const isExpanded = expandedItemId === item.id;
                     const pos = draggedPositions[item.id] || { x: 0, y: 0 };
@@ -351,6 +329,8 @@ const DataManager: React.FC = () => {
                         isActive={isActive}
                         isExpanded={isExpanded}
                         pos={pos}
+                        index={index}
+                        categoryItems={items}
                         copiedLink={copiedLink}
                         formatFileSize={formatFileSize}
                         onToggleExpand={onToggleExpand}
@@ -358,7 +338,16 @@ const DataManager: React.FC = () => {
                         onDelete={deleteItem}
                         onEdit={setEditingItem}
                         onToggleLinkStatus={onToggleLinkStatus}
-                        onDragEnd={onCardDragEnd}
+                        onSwap={(from, to, categoryItems) => {
+                          const newItems = swapItems(from, to, categoryItems);
+                          if (newItems) {
+                            const newDataItems = dataItems.map((it) => {
+                              const idx = categoryItems.findIndex((i) => i.id === it.id);
+                              return idx !== -1 ? newItems[idx] : it;
+                            });
+                            setDataItems(newDataItems);
+                          }
+                        }}
                       />
                     );
                   })}
@@ -373,7 +362,6 @@ const DataManager: React.FC = () => {
         );
       })}
 
-      {/* نافذة تعديل البيانات */}
       {editingItem && (
         <EditDataModal
           isOpen={!!editingItem}
@@ -383,7 +371,6 @@ const DataManager: React.FC = () => {
         />
       )}
 
-      {/* نافذة إضافة عنصر جديد */}
       {showAddModal && (
         <EditDataModal
           isOpen={showAddModal}
