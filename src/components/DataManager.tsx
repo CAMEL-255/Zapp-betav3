@@ -9,6 +9,24 @@ import { Plus, Edit, Trash2, Link, Check, Move } from 'lucide-react';
 import EditDataModal from './EditDataModal';
 import { useToast } from '../hooks/useToast';
 
+/** ----------------------- إعدادات الكاتيجوري ----------------------- **/
+const CATEGORY_ORDER: DataType[] = [
+  'id_card',
+  'license',
+  'photo',
+  'document',
+  'other',
+];
+
+const CATEGORY_LABELS: Record<DataType, string> = {
+  id_card: 'ID Cards',
+  license: 'License',
+  photo: 'Photos',
+  document: 'Documents',
+  other: 'Others',
+};
+/** ------------------------------------------------------------------ **/
+
 /** ----------------------- كارت قابل للسحب (لكل عنصر) ----------------------- **/
 type Position = { x: number; y: number };
 
@@ -283,7 +301,7 @@ const DataManager: React.FC = () => {
     );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* شريط البحث وإضافة عنصر */}
       <div className="flex items-center justify-between space-x-2 pr-4 pl-4">
         <input
@@ -302,38 +320,58 @@ const DataManager: React.FC = () => {
         </button>
       </div>
 
-      {/* عرض العناصر */}
-      {filteredItems.length === 0 ? (
-        <div className="card p-4 text-center text-gray-400">
-          <h3 className="text-lg font-medium">No items found</h3>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {filteredItems.map((item) => {
-            const isActive = linkStatus[item.id] ?? true;
-            const isExpanded = expandedItemId === item.id;
-            const pos = draggedPositions[item.id] || { x: 0, y: 0 };
+      {/* الأقسام حسب الكاتيجوري */}
+      {CATEGORY_ORDER.map((category) => {
+        const items = filteredItems.filter((it) => it.type === category);
+        const hasItems = items.length > 0;
 
-            return (
-              <DraggableCard
-                key={item.id}
-                item={item}
-                isActive={isActive}
-                isExpanded={isExpanded}
-                pos={pos}
-                copiedLink={copiedLink}
-                formatFileSize={formatFileSize}
-                onToggleExpand={onToggleExpand}
-                onCopyLink={copyNFCLink}
-                onDelete={deleteItem}
-                onEdit={setEditingItem}
-                onToggleLinkStatus={onToggleLinkStatus}
-                onDragEnd={onCardDragEnd}
-              />
-            );
-          })}
-        </div>
-      )}
+        return (
+          <section key={category} className="space-y-3">
+            {/* عنوان القسم */}
+            <div className="flex items-center justify-between px-4">
+              <h2 className="text-lg font-semibold text-gray-800">
+                {CATEGORY_LABELS[category]}
+              </h2>
+              <span className="text-sm text-gray-500">({items.length})</span>
+            </div>
+
+            {/* كروت القسم جنب بعض */}
+            <div className="px-4">
+              {hasItems ? (
+                <div className="flex flex-wrap gap-3">
+                  {items.map((item) => {
+                    const isActive = linkStatus[item.id] ?? true;
+                    const isExpanded = expandedItemId === item.id;
+                    const pos = draggedPositions[item.id] || { x: 0, y: 0 };
+
+                    return (
+                      <DraggableCard
+                        key={item.id}
+                        item={item}
+                        isActive={isActive}
+                        isExpanded={isExpanded}
+                        pos={pos}
+                        copiedLink={copiedLink}
+                        formatFileSize={formatFileSize}
+                        onToggleExpand={onToggleExpand}
+                        onCopyLink={copyNFCLink}
+                        onDelete={deleteItem}
+                        onEdit={setEditingItem}
+                        onToggleLinkStatus={onToggleLinkStatus}
+                        onDragEnd={onCardDragEnd}
+                      />
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-400 italic">No items in this category</div>
+              )}
+            </div>
+
+            <hr className="border-gray-200 mt-2" />
+          </section>
+        );
+      })}
 
       {/* نافذة تعديل البيانات */}
       {editingItem && (
