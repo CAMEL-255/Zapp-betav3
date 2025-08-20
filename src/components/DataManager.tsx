@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { motion, useDragControls } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { useDevice } from '../context/DeviceContext';
@@ -9,7 +9,13 @@ import { Plus, Edit, Trash2, Link, Check, Move } from 'lucide-react';
 import EditDataModal from './EditDataModal';
 import { useToast } from '../hooks/useToast';
 
-const CATEGORY_ORDER: Array<DataType | 'other'> = ['id_card', 'license', 'photo', 'document', 'other'];
+const CATEGORY_ORDER: Array<DataType | 'other'> = [
+  'id_card',
+  'license',
+  'photo',
+  'document',
+  'other',
+];
 
 const CATEGORY_LABELS: Record<string, string> = {
   id_card: 'ID Cards',
@@ -19,7 +25,24 @@ const CATEGORY_LABELS: Record<string, string> = {
   other: 'Others',
 };
 
+const CARD_WIDTH = 180;
+const CARD_HEIGHT = 240;
+const GAP = 12;
+
 type Position = { x: number; y: number };
+
+type BlockEnd = {
+  id: 'block-end';
+  name: 'Block';
+  type: DataType;
+  userId: '';
+  deviceId: '';
+  nfcLink: '';
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type CardOrBlock = DataItem | BlockEnd;
 
 type DraggableCardProps = {
   item: DataItem;
@@ -27,8 +50,8 @@ type DraggableCardProps = {
   isExpanded: boolean;
   pos: Position;
   index: number;
-  categoryItems: DataItem[];
-  onSwap: (fromIndex: number, toIndex: number, categoryItems: DataItem[]) => void;
+  siblings: CardOrBlock[];
+  onSwap: (fromIndex: number, toIndex: number) => void;
   copiedLink: string | null;
   formatFileSize: (bytes?: number) => string;
   onToggleExpand: (id: string) => void;
@@ -44,7 +67,7 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
   isExpanded,
   pos,
   index,
-  categoryItems,
+  siblings,
   onSwap,
   copiedLink,
   formatFileSize,
@@ -58,28 +81,42 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
   const typeConfig = getDataTypeConfig(item.type);
   const ref = useRef<HTMLDivElement>(null);
 
-  const handleDrag = (event: any, info: any) => {
-    if (!ref.current) return;
-    const parent = ref.current.parentElement;
-    if (!parent) return;
+  const handleDrag = (_event: any, info: any) => {
+    const currentRect = ref.current?.getBoundingClientRect();
+    if (!currentRect) return;
 
-    const siblings = Array.from(parent.children) as HTMLDivElement[];
+    const blockIndex = siblings.findIndex((s) => s.id === 'block-end');
+    const movingRight = info.delta.x > 0;
+    const movingLeft = info.delta.x < 0;
+
     siblings.forEach((sib, sibIndex) => {
-      if (sib === ref.current) return;
-      const rect = sib.getBoundingClientRect();
-      const currentRect = ref.current!.getBoundingClientRect();
+      if (sib.id === item.id) return;
+      if (sib.id === 'block-end') return;
 
-      const overlapX =
-        Math.min(currentRect.right, rect.right) - Math.max(currentRect.left, rect.left);
+      const sibEl = document.getElementById(`card-${sib.id}`);
+      if (!sibEl) return;
+      const rect = sibEl.getBoundingClientRect();
 
-      if (overlapX > rect.width / 4) { // ربع العرض للتبديل
-        onSwap(index, sibIndex, categoryItems);
+      const leftQuarterX = info.point.x;
+      const rightQuarterX = info.point.x + currentRect.width;
+
+      if (movingRight && index >= blockIndex - 1) return;
+      if (movingLeft && index <= 0) return;
+
+      const hitFromRight =
+        movingRight && rightQuarterX > rect.left && rightQuarterX < rect.right;
+      const hitFromLeft =
+        movingLeft && leftQuarterX > rect.left && leftQuarterX < rect.right;
+
+      if (hitFromRight || hitFromLeft) {
+        onSwap(index, sibIndex);
       }
     });
   };
 
   return (
     <motion.div
+      id={`card-${item.id}`}
       ref={ref}
       layout
       drag="x"
@@ -87,18 +124,23 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
       dragListener={false}
       dragMomentum={false}
       onDrag={handleDrag}
+      style={{
+        width: isExpanded ? 350 : CARD_WIDTH,
+        height: CARD_HEIGHT,
+        x: pos.x,
+        y: pos.y,
+        zIndex: 100,
+      }}
       initial={{ opacity: 0, y: 0 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 0 }}
-      whileDrag={{ opacity: 0.6 }} // شفاف أثناء الهولد
-      className="card p-2 hover:shadow-lg transition-shadow relative select-none"
-      style={{ width: isExpanded ? '350px' : '180px', x: pos.x, y: pos.y }}
+      className="card p-2 hover:shadow-lg transition-shadow relative bg-white rounded-lg"
     >
       {!isExpanded && (
         <motion.div
           dragControls={dragControls}
           dragListener={true}
-          className="w-4 h-4 absolute top-2 right-2 cursor-grab z-10"
+          className="w-4 h-4 absolute top-2 right-2 cursor-grab z-20"
           onPointerDown={(e) => dragControls.start(e)}
         >
           <Move className="w-4 h-4 text-gray-500" />
@@ -140,15 +182,9 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
               <button onClick={() => onEdit(item)} className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg">
                 <Edit className="w-4 h-4" />
               </button>
-
               <button onClick={() => onCopyLink(item)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
-                {copiedLink === item.nfcLink ? (
-                  <Check className="w-4 h-4 text-green-600" />
-                ) : (
-                  <Link className="w-4 h-4" />
-                )}
+                {copiedLink === item.nfcLink ? <Check className="w-4 h-4 text-green-600" /> : <Link className="w-4 h-4" />}
               </button>
-
               <button onClick={() => onDelete(item.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -176,6 +212,9 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
   );
 };
 
+// ========================================
+// ================= DataManager =========
+// ========================================
 const DataManager: React.FC = () => {
   const { user } = useAuth();
   const { deviceId } = useDevice();
@@ -191,8 +230,9 @@ const DataManager: React.FC = () => {
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [linkStatus, setLinkStatus] = useState<Record<string, boolean>>({});
-  const [draggedPositions, setDraggedPositions] = useState<Record<string, Position>>({});
+  const containerRefs = useRef<Record<string, HTMLDivElement>>({});
 
+  // Load data
   useEffect(() => {
     if (!user) return;
     setLoading(true);
@@ -208,6 +248,7 @@ const DataManager: React.FC = () => {
       .finally(() => setLoading(false));
   }, [user]);
 
+  // Filtering
   useEffect(() => {
     let filtered = dataItems;
     if (selectedType !== 'all') filtered = filtered.filter((item) => item.type === selectedType);
@@ -273,13 +314,12 @@ const DataManager: React.FC = () => {
   const onToggleExpand = (id: string) => setExpandedItemId((prev) => (prev === id ? null : id));
   const onToggleLinkStatus = (id: string) => setLinkStatus((prev) => ({ ...prev, [id]: !prev[id] }));
 
-  const swapItems = (fromIndex: number, toIndex: number, categoryItems: DataItem[]) => {
-    if (fromIndex === toIndex) return;
-    const newArr = [...categoryItems];
-    const temp = newArr[fromIndex];
-    newArr[fromIndex] = newArr[toIndex];
-    newArr[toIndex] = temp;
-    return newArr;
+  const swapPlain = (arr: DataItem[], from: number, to: number) => {
+    const next = [...arr];
+    const temp = next[from];
+    next[from] = next[to];
+    next[to] = temp;
+    return next;
   };
 
   if (loading) return <div className="flex items-center justify-center p-8 text-gray-600">Loading your data...</div>;
@@ -304,105 +344,150 @@ const DataManager: React.FC = () => {
       </div>
 
       {CATEGORY_ORDER.map((category) => {
-        const items = filteredItems.filter((it) => it.type === category);
-        const hasItems = items.length > 0;
+    const items = filteredItems.filter((it) => it.type === category);
+    const hasItems = items.length > 0;
 
-        return (
-          <section key={category} className="space-y-3">
-            <div className="flex items-center justify-between px-4">
-              <h2 className="text-lg font-semibold text-gray-800">{CATEGORY_LABELS[category]}</h2>
-              <span className="text-sm text-gray-500">({items.length})</span>
+    const itemsWithBlock: CardOrBlock[] = [
+      ...items,
+      {
+        id: 'block-end',
+        name: 'Block',
+        type: 'other' as DataType,
+        userId: '',
+        deviceId: '',
+        nfcLink: '',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+
+    return (
+      <section key={category} className="space-y-3">
+        <div className="flex items-center justify-between px-4">
+          <h2 className="text-lg font-semibold text-gray-800">{CATEGORY_LABELS[category]}</h2>
+          <span className="text-sm text-gray-500">({items.length})</span>
+        </div>
+
+        <div className="px-4">
+          {hasItems ? (
+            <div className="flex flex-row gap-3 overflow-x-auto py-2">
+              {itemsWithBlock.map((item, index) => {
+                if (item.id === 'block-end') {
+                  return (
+                    <div
+                      key="block-end"
+                      className="w-44 h-44 bg-gray-200 rounded-lg flex-shrink-0 flex items-center justify-center text-gray-400 text-sm"
+                    >
+                      Block
+                    </div>
+                  );
+                }
+
+                const isActive = linkStatus[item.id] ?? true;
+                const isExpanded = expandedItemId === item.id;
+                const pos = { x: 0, y: 0 };
+
+                return (
+                  <DraggableCard
+                    key={item.id}
+                    item={item}
+                    isActive={isActive}
+                    isExpanded={isExpanded}
+                    pos={pos}
+                    index={index}
+                    siblings={itemsWithBlock}
+                    copiedLink={copiedLink}
+                    formatFileSize={formatFileSize}
+                    onToggleExpand={onToggleExpand}
+                    onCopyLink={copyNFCLink}
+                    onDelete={deleteItem}
+                    onEdit={setEditingItem}
+                    onToggleLinkStatus={onToggleLinkStatus}
+                    onSwap={(from, to) => {
+                      if (itemsWithBlock[to]?.id === 'block-end') return;
+
+                      const plain = itemsWithBlock.filter((x): x is DataItem => x.id !== 'block-end');
+
+                      const mapIndex = (i: number) => {
+                        const before = itemsWithBlock.slice(0, i).filter((x) => x.id !== 'block-end').length;
+                        return before;
+                      };
+
+                      const fromPlain = mapIndex(from);
+                      const toPlain = mapIndex(to);
+
+                      const swapped = swapPlain(plain, fromPlain, toPlain);
+
+                      const updated = dataItems.map((di) => {
+                        if (di.type !== category) return di;
+                        return di;
+                      });
+
+                      let cursor = 0;
+                      const finalDataItems = updated.map((di) => {
+                        if (di.type !== category) return di;
+                        const nextItem = swapped[cursor];
+                        cursor += 1;
+                        return nextItem;
+                      });
+
+                      setDataItems(finalDataItems);
+                    }}
+                  />
+                );
+              })}
             </div>
+          ) : (
+            <div className="text-sm text-gray-400 italic">No items in this category</div>
+          )}
+        </div>
 
-            <div className="px-4">
-              {hasItems ? (
-                <div className="flex flex-row gap-3 overflow-x-auto py-2">
-                  {items.map((item, index) => {
-                    const isActive = linkStatus[item.id] ?? true;
-                    const isExpanded = expandedItemId === item.id;
-                    const pos = draggedPositions[item.id] || { x: 0, y: 0 };
+        <hr className="border-gray-200 mt-2" />
+      </section>
+    );
+  })}
 
-                    return (
-                      <DraggableCard
-                        key={item.id}
-                        item={item}
-                        isActive={isActive}
-                        isExpanded={isExpanded}
-                        pos={pos}
-                        index={index}
-                        categoryItems={items}
-                        copiedLink={copiedLink}
-                        formatFileSize={formatFileSize}
-                        onToggleExpand={onToggleExpand}
-                        onCopyLink={copyNFCLink}
-                        onDelete={deleteItem}
-                        onEdit={setEditingItem}
-                        onToggleLinkStatus={onToggleLinkStatus}
-                        onSwap={(from, to, categoryItems) => {
-                          const newItems = swapItems(from, to, categoryItems);
-                          if (newItems) {
-                            const newDataItems = dataItems.map((it) => {
-                              const idx = categoryItems.findIndex((i) => i.id === it.id);
-                              return idx !== -1 ? newItems[idx] : it;
-                            });
-                            setDataItems(newDataItems);
-                          }
-                        }}
-                      />
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-sm text-gray-400 italic">No items in this category</div>
-              )}
-            </div>
+  {editingItem && (
+    <EditDataModal
+      isOpen={!!editingItem}
+      onClose={() => setEditingItem(null)}
+      dataItem={editingItem}
+      onSave={handleEditSave}
+    />
+  )}
 
-            <hr className="border-gray-200 mt-2" />
-          </section>
-        );
-      })}
+  {showAddModal && (
+    <EditDataModal
+      isOpen={showAddModal}
+      onClose={() => setShowAddModal(false)}
+      dataItem={{
+        id: '',
+        name: 'Untitled',
+        type: DATA_TYPES[0].id,
+        userId: user?.id || '',
+        deviceId: deviceId || 'web',
+        nfcLink: '',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }}
+      onSave={async (data) => {
+        if (!data.name) data.name = 'Untitled';
+        if (!data.type) data.type = DATA_TYPES[0].id;
+        if (!data.userId) data.userId = user?.id || '';
 
-      {editingItem && (
-        <EditDataModal
-          isOpen={!!editingItem}
-          onClose={() => setEditingItem(null)}
-          dataItem={editingItem}
-          onSave={handleEditSave}
-        />
-      )}
-
-      {showAddModal && (
-        <EditDataModal
-          isOpen={showAddModal}
-          onClose={() => setShowAddModal(false)}
-          dataItem={{
-            id: '',
-            name: 'Untitled',
-            type: DATA_TYPES[0].id,
-            userId: user?.id || '',
-            deviceId: deviceId || 'web',
-            nfcLink: '',
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          }}
-          onSave={async (data) => {
-            if (!data.name) data.name = 'Untitled';
-            if (!data.type) data.type = DATA_TYPES[0].id;
-            if (!data.userId) data.userId = user?.id || '';
-
-            try {
-              const newItem = await dataService.addDataItem(data);
-              setDataItems((prev) => [newItem, ...prev]);
-              setShowAddModal(false);
-              showToast('success', 'Item Added', 'Data item added successfully.');
-            } catch (error) {
-              console.error(error);
-              showToast('error', 'Add Failed', 'Failed to add new data item.');
-            }
-          }}
-        />
-      )}
-    </div>
+        try {
+          const newItem = await dataService.addDataItem(data);
+          setDataItems((prev) => [newItem, ...prev]);
+          setShowAddModal(false);
+          showToast('success', 'Item Added', 'Data item added successfully.');
+        } catch (error) {
+          console.error(error);
+          showToast('error', 'Add Failed', 'Failed to add new data item.');
+        }
+      }}
+    />
+  )}
+</div>
   );
 };
 
