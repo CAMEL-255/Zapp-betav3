@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext'; // FIX: Added missing import for useAuth
 import { dataService } from '../services/dataService';
 import { DataItem } from '../types';
 import { getDataTypeConfig } from '../config/dataTypes';
@@ -15,7 +15,7 @@ interface NFCStatus {
 }
 
 const NFCManager: React.FC = () => {
-  const { user } = useAuth();
+  const { user } = useAuth(); // useAuth is used here
   const [nfcStatus, setNfcStatus] = useState<NFCStatus>({
     supported: false,
     available: false,
@@ -205,7 +205,7 @@ const NFCManager: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* NFC Status */}
-      <div className="card p-6">
+      <div className="card p-6 bg-white/95 border border-white/20">
         <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
           <Radio className="w-5 h-5 mr-2" />
           NFC Manager
@@ -255,7 +255,7 @@ const NFCManager: React.FC = () => {
             <select
               value={selectedDataItem}
               onChange={(e) => setSelectedDataItem(e.target.value)}
-              className="input-field w-full"
+              className="input-field w-full bg-white/90"
             >
               <option value="">Choose a data item...</option>
               {dataItems.map((item) => {
@@ -299,7 +299,7 @@ const NFCManager: React.FC = () => {
           {(nfcStatus.reading || nfcStatus.writing) && (
             <button
               onClick={stopNFC}
-              className="btn-secondary w-full text-red-600 border-red-300 hover:bg-red-50"
+              className="btn-secondary w-full text-red-600 border border-red-300 hover:bg-red-50 bg-white/20"
             >
               Stop NFC Operation
             </button>
@@ -329,7 +329,7 @@ const NFCManager: React.FC = () => {
       </div>
 
       {/* Instructions */}
-      <div className="card p-6">
+      <div className="card p-6 bg-white/95 border border-white/20">
         <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
           <Smartphone className="w-5 h-5 mr-2" />
           How to Use NFC

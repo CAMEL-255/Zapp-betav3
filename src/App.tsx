@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { DeviceProvider } from './context/DeviceContext';
@@ -15,7 +14,7 @@ const pageVariants = {
   exit: { opacity: 0, x: '-100vw' }
 };
 
-function AnimatedRoutes() {
+function App() {
   const { user, loading } = useAuth();
   const location = useLocation();
 
@@ -58,13 +57,13 @@ function AnimatedRoutes() {
   );
 }
 
-function App() {
+const WrappedApp = () => {
   return (
     <AuthProvider>
       <DeviceProvider>
         <ToastProvider>
           <Router>
-            <AppContent />
+            <App /> {/* Changed from <AppContent /> to <App /> */}
           </Router>
         </ToastProvider>
       </DeviceProvider>
@@ -72,4 +71,4 @@ function App() {
   );
 }
 
-export default App;
+export default WrappedApp;

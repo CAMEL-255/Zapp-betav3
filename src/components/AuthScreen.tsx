@@ -36,12 +36,12 @@ const AuthScreen: React.FC = () => {
           <div className="bg-white/20 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-lg">
             <Zap className="w-10 h-10 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2 md:text-4xl">ZButton</h1> {/* NEW: Responsive font size */}
-          <p className="text-white/80 text-lg md:text-xl">Web Beta</p> {/* NEW: Responsive font size */}
+          <h1 className="text-3xl font-bold text-white mb-2 md:text-4xl">ZButton</h1>
+          <p className="text-white/80 text-lg md:text-xl">Web Beta</p>
         </div>
 
         {/* Auth Card */}
-        <div className="card p-6">
+        <div className="card p-6 bg-white/95 border border-white/20"> {/* NEW: Tailwind classes for card background and border */}
           <div className="text-center mb-6">
             <h2 className="text-2xl font-bold text-gray-800 mb-2">
               {isSignUp ? 'Create Account' : 'Welcome Back'}
@@ -61,7 +61,7 @@ const AuthScreen: React.FC = () => {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="input-field w-full"
+                className="input-field w-full bg-white/90" /* NEW: Tailwind class for input background */
                 placeholder="Enter your email"
                 required
               />
@@ -76,7 +76,7 @@ const AuthScreen: React.FC = () => {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="input-field w-full"
+                className="input-field w-full bg-white/90" /* NEW: Tailwind class for input background */
                 placeholder="Enter your password"
                 minLength={6}
                 required

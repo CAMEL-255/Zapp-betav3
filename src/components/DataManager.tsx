@@ -26,7 +26,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const CARD_WIDTH = 180;
-const CARD_HEIGHT = 240;
+const CARD_HEIGHT = 60;
 
 type Position = { x: number; y: number };
 

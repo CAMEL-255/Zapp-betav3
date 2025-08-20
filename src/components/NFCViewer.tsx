@@ -6,7 +6,7 @@ import { getDataTypeConfig } from '../config/dataTypes';
 import { Zap, Calendar, User, Download, ExternalLink } from 'lucide-react';
 
 const NFCViewer: React.FC = () => {
-  const { id } = useParams<{ type: string; id: string }>(); // NEW: Removed 'type' from destructuring
+  const { id } = useParams<{ type: string; id: string }>();
   const [dataItem, setDataItem] = useState<DataItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +60,7 @@ const NFCViewer: React.FC = () => {
   if (error || !dataItem) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-700 flex items-center justify-center p-4">
-        <div className="card w-full max-w-md text-center p-6">
+        <div className="card w-full max-w-md text-center p-6 bg-white/95 border border-white/20"> {/* NEW: Tailwind classes for card background and border */}
           <div className="text-red-500 mb-4">
             <ExternalLink className="w-12 h-12 mx-auto" />
           </div>
@@ -95,7 +95,7 @@ const NFCViewer: React.FC = () => {
       </div>
 
       {/* Data Card */}
-      <div className="card w-full mx-auto p-6 max-w-md md:max-w-lg lg:max-w-xl">
+      <div className="card w-full mx-auto p-6 max-w-md md:max-w-lg lg:max-w-xl bg-white/95 border border-white/20"> {/* NEW: Tailwind classes for card background and border */}
         <div className="text-center mb-6">
           <div className={`w-16 h-16 rounded-full ${typeConfig.color} flex items-center justify-center mx-auto mb-4 text-white text-2xl`}>
             {typeConfig.icon}

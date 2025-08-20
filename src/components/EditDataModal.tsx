@@ -162,7 +162,7 @@ const EditDataModal: React.FC<EditDataModalProps> = ({
               required: 'Name is required',
               minLength: { value: 1, message: 'Name cannot be empty' }
             })}
-            className={`input-field w-full ${errors.name ? 'border-red-300' : ''}`}
+            className={`input-field w-full bg-white/90 ${errors.name ? 'border-red-300' : ''}`} /* NEW: Tailwind class for input background */
             placeholder={`Enter ${typeConfig.name.toLowerCase()} name`}
           />
           {errors.name && (
@@ -177,7 +177,7 @@ const EditDataModal: React.FC<EditDataModalProps> = ({
           </label>
           <textarea
             {...register('description')}
-            className="input-field w-full h-20 resize-none"
+            className="input-field w-full h-20 resize-none bg-white/90" /* NEW: Tailwind class for input background */
             placeholder="Optional description"
           />
         </div>
@@ -223,7 +223,7 @@ const EditDataModal: React.FC<EditDataModalProps> = ({
               type="file"
               onChange={handleFileChange}
               accept={typeConfig.acceptedFileTypes.join(',')}
-              className="input-field w-full"
+              className="input-field w-full bg-white/90" /* NEW: Tailwind class for input background */
               id="file-upload"
             />
             
@@ -283,7 +283,7 @@ const EditDataModal: React.FC<EditDataModalProps> = ({
             whileTap={{ scale: 0.98 }}
             type="button"
             onClick={onClose}
-            className="btn-secondary flex-1 text-gray-700 border-gray-300 hover:bg-gray-50" // NEW: Adjusted class names
+            className="btn-secondary flex-1 border-2 border-gray-300 hover:bg-gray-50 bg-white/20" /* NEW: Added border and background classes */
             disabled={loading}
           >
             <X className="w-4 h-4 mr-2" />

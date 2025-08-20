@@ -16,7 +16,7 @@ const Dashboard: React.FC = () => {
   return (
     <div className="min-h-screen p-4">
       {/* Header */}
-      <div className="card p-4 mb-6 relative flex flex-wrap items-center justify-between gap-4">
+      <div className="card p-4 mb-6 relative flex flex-wrap items-center justify-between gap-4 bg-white/95 border border-white/20">
         <div className="flex items-center space-x-3">
           <div className="bg-gradient-to-r from-purple-600 to-blue-600 w-10 h-10 rounded-full flex items-center justify-center">
             <Zap className="w-5 h-5 text-white" />
@@ -105,7 +105,7 @@ const Dashboard: React.FC = () => {
           {/* Sign Out / Exit Button */}
           <button
             onClick={signOut}
-            className="btn-secondary text-gray-700 border-gray-300 hover:bg-gray-50 p-2"
+            className="btn-secondary text-gray-700 border-2 border-gray-300 hover:bg-gray-50 p-2 bg-white/20"
             title="Sign Out"
           >
             <LogOut className="w-5 h-5" />
@@ -114,7 +114,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Tab Navigation */}
-      <div className="card p-1 mb-6 tab-navigation">
+      <div className="card p-1 mb-6 tab-navigation bg-white/95 border border-white/20">
         <div className="grid grid-cols-3 rounded-lg overflow-hidden md:grid-cols-3">
           <button
             onClick={() => setActiveTab('data')}
@@ -153,7 +153,7 @@ const Dashboard: React.FC = () => {
       <div className="space-y-6">
         {activeTab === 'data' && <DataManager />}
         {activeTab === 'upload' && <FileUpload />}
-        {activeTab === 'nfc' && <NFCManager />}
+        {activeTab === 'nfc' && <NFCManager />} {/* NEW: Ensure NFCManager is rendered when activeTab is 'nfc' */}
       </div>
     </div>
   );
