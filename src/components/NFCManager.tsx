@@ -138,7 +138,9 @@ const NFCManager: React.FC = () => {
       setMessageType('error');
       return;
     }
-
+    
+    // OLD: const dataItem = await dataService.getDataItem(selectedDataItem);
+    // NEW:
     const dataItem = await dataService.getDataItem(selectedDataItem);
     if (!dataItem) {
       setMessage('Selected data item not found');

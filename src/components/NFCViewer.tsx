@@ -94,7 +94,7 @@ const NFCViewer: React.FC = () => {
       </div>
 
       {/* Data Card */}
-      <div className="card w-full max-w-md mx-auto p-6">
+      <div className="card w-full mx-auto p-6 max-w-md md:max-w-lg lg:max-w-xl">
         <div className="text-center mb-6">
           <div className={`w-16 h-16 rounded-full ${typeConfig.color} flex items-center justify-center mx-auto mb-4 text-white text-2xl`}>
             {typeConfig.icon}
@@ -181,7 +181,7 @@ const NFCViewer: React.FC = () => {
         <div className="mt-6 pt-4 border-t border-gray-200 text-center">
           <button
             onClick={() => window.location.href = '/'}
-            className="btn-secondary text-purple-600 border-purple-200 hover:bg-purple-50"
+            className="btn-secondary w-full md:w-auto text-purple-600 border-purple-200 hover:bg-purple-50"
           >
             Get ZButton
           </button>

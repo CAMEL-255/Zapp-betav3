@@ -34,9 +34,9 @@ type BlockEnd = {
   id: 'block-end';
   name: 'Block';
   type: DataType;
-  userId: '';
-  deviceId: '';
-  nfcLink: '';
+  userId: '',
+  deviceId: '',
+  nfcLink: '',
   createdAt: Date;
   updatedAt: Date;
 };
@@ -103,29 +103,31 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
     (_event: any, info: any) => {
       const currentRect = ref.current?.getBoundingClientRect();
       if (!currentRect) return;
-  
+
       const movingRight = info.delta.x > 0;
       const movingLeft = info.delta.x < 0;
-  
+
       siblings.forEach((sib, sibIndex) => {
         if (sib.id === item.id || sib.id === 'block-end') {
           return;
         }
-  
+
         const sibEl = document.getElementById(`card-${sib.id}`);
         if (!sibEl) return;
         const rect = sibEl.getBoundingClientRect();
-  
+
         let isSwapping = false;
-  
+
+        // Check if moving right and passing the sibling's midpoint
         if (movingRight && (currentRect.left + currentRect.width / 2) > (rect.left + rect.width / 2) && index < sibIndex) {
           isSwapping = true;
         }
-  
+
+        // Check if moving left and passing the sibling's midpoint
         if (movingLeft && (currentRect.left + currentRect.width / 2) < (rect.left + rect.width / 2) && index > sibIndex) {
           isSwapping = true;
         }
-  
+
         if (isSwapping) {
           onSwap(index, sibIndex);
         }

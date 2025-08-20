@@ -148,6 +148,38 @@ class DataService {
       updatedAt: new Date(d.updated_at)
     }));
   }
+  
+  // NEW: A new function to get a single data item by its ID
+  async getDataItem(id: string): Promise<DataItem | null> {
+    const { data, error } = await supabase
+      .from('photo_metadata')
+      .select('*')
+      .eq('id', id)
+      .single();
+    
+    if (error) {
+      console.error('Error fetching single data item:', error);
+      return null;
+    }
+
+    if (!data) return null;
+
+    return {
+      id: data.id.toString(),
+      userId: data.uploader_id,
+      deviceId: getDeviceId(),
+      type: data.tags?.[0] || 'unknown',
+      name: data.file_name,
+      description: data.description || '',
+      fileData: data.file_url || '',
+      fileName: data.file_name,
+      fileType: data.mime_type,
+      fileSize: data.file_size,
+      nfcLink: this.generateNFCLink(data.id.toString(), data.tags?.[0] || 'unknown'),
+      createdAt: new Date(data.uploaded_at),
+      updatedAt: new Date(data.updated_at)
+    };
+  }
 
   async deleteDataItem(id: string): Promise<boolean> {
     const { error } = await supabase.from('photo_metadata').delete().eq('id', id);

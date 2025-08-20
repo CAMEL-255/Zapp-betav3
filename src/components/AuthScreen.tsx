@@ -36,8 +36,8 @@ const AuthScreen: React.FC = () => {
           <div className="bg-white/20 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-lg">
             <Zap className="w-10 h-10 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">ZButton</h1>
-          <p className="text-white/80 text-lg">Web Beta</p>
+          <h1 className="text-3xl font-bold text-white mb-2 md:text-4xl">ZButton</h1> {/* NEW: Responsive font size */}
+          <p className="text-white/80 text-lg md:text-xl">Web Beta</p> {/* NEW: Responsive font size */}
         </div>
 
         {/* Auth Card */}

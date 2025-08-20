@@ -7,8 +7,9 @@
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(10px);
   border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); /* تعديل على الظل ليكون أكثر نعومة */
   border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease-in-out;
 }
 
 .btn-primary {
@@ -17,7 +18,7 @@
   border-radius: 12px;
   color: white;
   font-weight: 600;
-  padding: 12px 24px;
+  padding: 14px 28px; /* زيادة حجم الزر ليكون مناسبًا للمس */
   transition: all 0.3s ease;
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
@@ -33,7 +34,7 @@
   border-radius: 12px;
   color: white;
   font-weight: 600;
-  padding: 12px 24px;
+  padding: 14px 28px; /* زيادة حجم الزر ليكون مناسبًا للمس */
   transition: all 0.3s ease;
 }
 
@@ -49,6 +50,7 @@
   padding: 12px 16px;
   font-size: 16px;
   transition: all 0.3s ease;
+  width: 100%; /* تأكد أن الحقل يملأ المساحة المتاحة */
 }
 
 .input-field:focus {
@@ -117,13 +119,23 @@
   .card {
     margin: 16px;
     border-radius: 12px;
+    padding: 24px; /* زيادة التباعد الداخلي في الجوال */
   }
   
   .btn-primary, .btn-secondary {
     width: 100%;
     padding: 14px 24px;
+    font-size: 16px; /* حجم خط مناسب */
   }
-  
+
+  /* تحسينات خاصة بـ Dashboard */
+  .tab-navigation .grid {
+    grid-template-columns: 1fr; /* عرض الأزرار فوق بعضها */
+  }
+  .tab-navigation button {
+    padding: 16px; /* زيادة حجم الأزرار في الجوال */
+  }
+
   .edit-button {
     opacity: 1;
     transform: scale(1);
