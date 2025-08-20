@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Zap, Mail, Lock, User, Smartphone } from 'lucide-react';
+import { Zap, Mail, Lock, Smartphone } from 'lucide-react'; // FIX: Removed 'User' from import
 
 const AuthScreen: React.FC = () => {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -41,7 +41,7 @@ const AuthScreen: React.FC = () => {
         </div>
 
         {/* Auth Card */}
-        <div className="card p-6 bg-white/95 border border-white/20"> {/* NEW: Tailwind classes for card background and border */}
+        <div className="card p-6 bg-white/95 border border-white/20">
           <div className="text-center mb-6">
             <h2 className="text-2xl font-bold text-gray-800 mb-2">
               {isSignUp ? 'Create Account' : 'Welcome Back'}
@@ -61,7 +61,7 @@ const AuthScreen: React.FC = () => {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="input-field w-full bg-white/90" /* NEW: Tailwind class for input background */
+                className="input-field w-full bg-white/90"
                 placeholder="Enter your email"
                 required
               />
@@ -76,7 +76,7 @@ const AuthScreen: React.FC = () => {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="input-field w-full bg-white/90" /* NEW: Tailwind class for input background */
+                className="input-field w-full bg-white/90"
                 placeholder="Enter your password"
                 minLength={6}
                 required
