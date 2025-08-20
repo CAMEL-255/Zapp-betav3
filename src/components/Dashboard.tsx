@@ -16,7 +16,7 @@ const Dashboard: React.FC = () => {
   return (
     <div className="min-h-screen p-4">
       {/* Header */}
-      <div className="card p-4 mb-6 relative flex flex-wrap items-center justify-between gap-4"> {/* NEW: Add flex-wrap and gap */}
+      <div className="card p-4 mb-6 relative flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center space-x-3">
           <div className="bg-gradient-to-r from-purple-600 to-blue-600 w-10 h-10 rounded-full flex items-center justify-center">
             <Zap className="w-5 h-5 text-white" />
@@ -49,7 +49,7 @@ const Dashboard: React.FC = () => {
             {/* Dropdown using portal */}
             {dropdownOpen &&
               ReactDOM.createPortal(
-                <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-80 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50 md:top-20 md:right-20 md:left-auto md:transform-none"> {/* NEW: Centered on mobile */}
+                <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-80 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50 md:top-20 md:right-20 md:left-auto md:transform-none">
                   <div className="p-3 space-y-3">
                     {/* Device ID */}
                     <div className="flex items-center justify-between">
@@ -115,7 +115,7 @@ const Dashboard: React.FC = () => {
 
       {/* Tab Navigation */}
       <div className="card p-1 mb-6 tab-navigation">
-        <div className="grid grid-cols-3 rounded-lg overflow-hidden md:grid-cols-3"> {/* NEW: Add class for mobile */}
+        <div className="grid grid-cols-3 rounded-lg overflow-hidden md:grid-cols-3">
           <button
             onClick={() => setActiveTab('data')}
             className={`py-3 px-4 text-center font-medium transition-all duration-200 ${

@@ -18,15 +18,15 @@ const CATEGORY_ORDER: Array<DataType | 'other'> = [
 ];
 
 const CATEGORY_LABELS: Record<string, string> = {
-  id_card: 'ID Cards',
-  license: 'License',
-  photo: 'Photos',
-  document: 'Documents',
-  other: 'Others',
+  'id_card': 'ID Cards',
+  'license': 'License',
+  'photo': 'Photos',
+  'document': 'Documents',
+  'other': 'Others',
 };
 
 const CARD_WIDTH = 180;
-const CARD_HEIGHT = 240;
+const CARD_HEIGHT = 60; // NEW: Reduced card height
 
 type Position = { x: number; y: number };
 
@@ -34,9 +34,9 @@ type BlockEnd = {
   id: 'block-end';
   name: 'Block';
   type: DataType;
-  userId: '',
-  deviceId: '',
-  nfcLink: '',
+  userId: string;
+  deviceId: string;
+  nfcLink: string;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -87,14 +87,16 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
     if (!cardEl || !containerEl) return;
 
     const blockEl = containerEl.querySelector<HTMLDivElement>('[data-is-block="true"]');
-    if (!blockEl) return;
 
     const cardRect = cardEl.getBoundingClientRect();
     const containerRect = containerEl.getBoundingClientRect();
-    const blockRect = blockEl.getBoundingClientRect();
-
+    
     const left = containerRect.left - cardRect.left;
-    const right = blockRect.left - cardRect.right;
+    
+    let right = 0;
+    if (blockEl) {
+        right = blockEl.getBoundingClientRect().left - cardRect.right;
+    }
 
     setDragConstraints({ left, right, top: 0, bottom: 0 });
   };
@@ -118,12 +120,10 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
 
         let isSwapping = false;
 
-        // Check if moving right and passing the sibling's midpoint
         if (movingRight && (currentRect.left + currentRect.width / 2) > (rect.left + rect.width / 2) && index < sibIndex) {
           isSwapping = true;
         }
 
-        // Check if moving left and passing the sibling's midpoint
         if (movingLeft && (currentRect.left + currentRect.width / 2) < (rect.left + rect.width / 2) && index > sibIndex) {
           isSwapping = true;
         }
@@ -407,10 +407,11 @@ const DataManager: React.FC = () => {
                           key="block-end"
                           data-is-block="true"
                           style={{
-                            width: CARD_WIDTH,
-                            height: CARD_HEIGHT,
-                            minWidth: CARD_WIDTH,
-                            marginTop: '-32px'
+                            width: '1000px',
+                            height: 100,
+                            minWidth: '1000px',
+                            marginTop: '-32px',
+                            opacity: 0,
                           }}
                           className="bg-gray-200 rounded-lg flex-shrink-0 flex items-center justify-center text-gray-400 text-sm"
                         >
