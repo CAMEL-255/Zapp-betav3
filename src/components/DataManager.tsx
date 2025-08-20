@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, useDragControls } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { useDevice } from '../context/DeviceContext';
@@ -27,7 +27,6 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 const CARD_WIDTH = 180;
 const CARD_HEIGHT = 240;
-const GAP = 12;
 
 type Position = { x: number; y: number };
 
@@ -80,35 +79,55 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
   const dragControls = useDragControls();
   const typeConfig = getDataTypeConfig(item.type);
   const ref = useRef<HTMLDivElement>(null);
+  const [dragConstraints, setDragConstraints] = useState({ left: 0, right: 0, top: 0, bottom: 0 });
+
+  const calculateConstraints = () => {
+    const cardEl = ref.current;
+    const containerEl = cardEl?.parentElement;
+    if (!cardEl || !containerEl) return;
+
+    const blockEl = containerEl.querySelector<HTMLDivElement>('[data-is-block="true"]');
+    if (!blockEl) return;
+
+    const cardRect = cardEl.getBoundingClientRect();
+    const containerRect = containerEl.getBoundingClientRect();
+    const blockRect = blockEl.getBoundingClientRect();
+
+    const left = containerRect.left - cardRect.left;
+    const right = blockRect.left - cardRect.right;
+
+    setDragConstraints({ left, right, top: 0, bottom: 0 });
+  };
 
   const handleDrag = (_event: any, info: any) => {
     const currentRect = ref.current?.getBoundingClientRect();
     if (!currentRect) return;
 
-    const blockIndex = siblings.findIndex((s) => s.id === 'block-end');
     const movingRight = info.delta.x > 0;
     const movingLeft = info.delta.x < 0;
 
     siblings.forEach((sib, sibIndex) => {
-      if (sib.id === item.id) return;
-      if (sib.id === 'block-end') return;
+      if (sib.id === item.id || sib.id === 'block-end') {
+        return;
+      }
 
       const sibEl = document.getElementById(`card-${sib.id}`);
       if (!sibEl) return;
       const rect = sibEl.getBoundingClientRect();
 
-      const leftQuarterX = info.point.x;
-      const rightQuarterX = info.point.x + currentRect.width;
+      let isSwapping = false;
 
-      if (movingRight && index >= blockIndex - 1) return;
-      if (movingLeft && index <= 0) return;
+      // Check if moving right and passing the sibling's left edge
+      if (movingRight && currentRect.right > rect.left && index < sibIndex) {
+        isSwapping = true;
+      }
 
-      const hitFromRight =
-        movingRight && rightQuarterX > rect.left && rightQuarterX < rect.right;
-      const hitFromLeft =
-        movingLeft && leftQuarterX > rect.left && leftQuarterX < rect.right;
+      // Check if moving left and passing the sibling's right edge
+      if (movingLeft && currentRect.left < rect.right && index > sibIndex) {
+        isSwapping = true;
+      }
 
-      if (hitFromRight || hitFromLeft) {
+      if (isSwapping) {
         onSwap(index, sibIndex);
       }
     });
@@ -124,12 +143,15 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
       dragListener={false}
       dragMomentum={false}
       onDrag={handleDrag}
+      dragConstraints={dragConstraints}
+      onDragStart={calculateConstraints}
       style={{
         width: isExpanded ? 350 : CARD_WIDTH,
         height: CARD_HEIGHT,
         x: pos.x,
         y: pos.y,
         zIndex: 100,
+        userSelect: 'none',
       }}
       initial={{ opacity: 0, y: 0 }}
       animate={{ opacity: 1, y: 0 }}
@@ -212,9 +234,6 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
   );
 };
 
-// ========================================
-// ================= DataManager =========
-// ========================================
 const DataManager: React.FC = () => {
   const { user } = useAuth();
   const { deviceId } = useDevice();
@@ -230,9 +249,7 @@ const DataManager: React.FC = () => {
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [linkStatus, setLinkStatus] = useState<Record<string, boolean>>({});
-  const containerRefs = useRef<Record<string, HTMLDivElement>>({});
 
-  // Load data
   useEffect(() => {
     if (!user) return;
     setLoading(true);
@@ -248,7 +265,6 @@ const DataManager: React.FC = () => {
       .finally(() => setLoading(false));
   }, [user]);
 
-  // Filtering
   useEffect(() => {
     let filtered = dataItems;
     if (selectedType !== 'all') filtered = filtered.filter((item) => item.type === selectedType);
@@ -263,21 +279,6 @@ const DataManager: React.FC = () => {
     }
     setFilteredItems(filtered);
   }, [dataItems, selectedType, searchQuery]);
-
-  const copyNFCLink = async (item: DataItem) => {
-    if (!linkStatus[item.id]) {
-      showToast('error', 'Link Disabled', 'This NFC link is currently turned off');
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(item.nfcLink);
-      setCopiedLink(item.nfcLink);
-      showToast('success', 'Link Copied', 'NFC link copied to clipboard');
-      setTimeout(() => setCopiedLink(null), 2000);
-    } catch {
-      showToast('error', 'Copy Failed', 'Failed to copy link.');
-    }
-  };
 
   const handleEditSave = async (updatedData: Partial<DataItem>, newFile?: File) => {
     if (!editingItem) return;
@@ -303,6 +304,21 @@ const DataManager: React.FC = () => {
     }
   };
 
+  const copyNFCLink = async (item: DataItem) => {
+    if (!linkStatus[item.id]) {
+      showToast('error', 'Link Disabled', 'This NFC link is currently turned off');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(item.nfcLink);
+      setCopiedLink(item.nfcLink);
+      showToast('success', 'Link Copied', 'NFC link copied to clipboard');
+      setTimeout(() => setCopiedLink(null), 2000);
+    } catch {
+      showToast('error', 'Copy Failed', 'Failed to copy link.');
+    }
+  };
+
   const formatFileSize = (bytes?: number) => {
     if (!bytes) return 'N/A';
     const k = 1024;
@@ -314,12 +330,22 @@ const DataManager: React.FC = () => {
   const onToggleExpand = (id: string) => setExpandedItemId((prev) => (prev === id ? null : id));
   const onToggleLinkStatus = (id: string) => setLinkStatus((prev) => ({ ...prev, [id]: !prev[id] }));
 
-  const swapPlain = (arr: DataItem[], from: number, to: number) => {
-    const next = [...arr];
-    const temp = next[from];
-    next[from] = next[to];
-    next[to] = temp;
-    return next;
+  const handleSwap = (fromId: string, toId: string) => {
+    setDataItems((prev) => {
+      const fromIndex = prev.findIndex((item) => item.id === fromId);
+      const toIndex = prev.findIndex((item) => item.id === toId);
+
+      if (fromIndex === -1 || toIndex === -1) {
+        return prev;
+      }
+
+      const newItems = [...prev];
+      const temp = newItems[fromIndex];
+      newItems[fromIndex] = newItems[toIndex];
+      newItems[toIndex] = temp;
+      
+      return newItems;
+    });
   };
 
   if (loading) return <div className="flex items-center justify-center p-8 text-gray-600">Loading your data...</div>;
@@ -344,150 +370,135 @@ const DataManager: React.FC = () => {
       </div>
 
       {CATEGORY_ORDER.map((category) => {
-    const items = filteredItems.filter((it) => it.type === category);
-    const hasItems = items.length > 0;
+        const items = filteredItems.filter((it) => it.type === category);
+        const hasItems = items.length > 0;
 
-    const itemsWithBlock: CardOrBlock[] = [
-      ...items,
-      {
-        id: 'block-end',
-        name: 'Block',
-        type: 'other' as DataType,
-        userId: '',
-        deviceId: '',
-        nfcLink: '',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    ];
+        const itemsWithBlock: CardOrBlock[] = [
+          ...items,
+          {
+            id: 'block-end',
+            name: 'Block',
+            type: 'other' as DataType,
+            userId: '',
+            deviceId: '',
+            nfcLink: '',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ];
 
-    return (
-      <section key={category} className="space-y-3">
-        <div className="flex items-center justify-between px-4">
-          <h2 className="text-lg font-semibold text-gray-800">{CATEGORY_LABELS[category]}</h2>
-          <span className="text-sm text-gray-500">({items.length})</span>
-        </div>
-
-        <div className="px-4">
-          {hasItems ? (
-            <div className="flex flex-row gap-3 overflow-x-auto py-2">
-              {itemsWithBlock.map((item, index) => {
-                if (item.id === 'block-end') {
-                  return (
-                    <div
-                      key="block-end"
-                      className="w-44 h-44 bg-gray-200 rounded-lg flex-shrink-0 flex items-center justify-center text-gray-400 text-sm"
-                    >
-                      Block
-                    </div>
-                  );
-                }
-
-                const isActive = linkStatus[item.id] ?? true;
-                const isExpanded = expandedItemId === item.id;
-                const pos = { x: 0, y: 0 };
-
-                return (
-                  <DraggableCard
-                    key={item.id}
-                    item={item}
-                    isActive={isActive}
-                    isExpanded={isExpanded}
-                    pos={pos}
-                    index={index}
-                    siblings={itemsWithBlock}
-                    copiedLink={copiedLink}
-                    formatFileSize={formatFileSize}
-                    onToggleExpand={onToggleExpand}
-                    onCopyLink={copyNFCLink}
-                    onDelete={deleteItem}
-                    onEdit={setEditingItem}
-                    onToggleLinkStatus={onToggleLinkStatus}
-                    onSwap={(from, to) => {
-                      if (itemsWithBlock[to]?.id === 'block-end') return;
-
-                      const plain = itemsWithBlock.filter((x): x is DataItem => x.id !== 'block-end');
-
-                      const mapIndex = (i: number) => {
-                        const before = itemsWithBlock.slice(0, i).filter((x) => x.id !== 'block-end').length;
-                        return before;
-                      };
-
-                      const fromPlain = mapIndex(from);
-                      const toPlain = mapIndex(to);
-
-                      const swapped = swapPlain(plain, fromPlain, toPlain);
-
-                      const updated = dataItems.map((di) => {
-                        if (di.type !== category) return di;
-                        return di;
-                      });
-
-                      let cursor = 0;
-                      const finalDataItems = updated.map((di) => {
-                        if (di.type !== category) return di;
-                        const nextItem = swapped[cursor];
-                        cursor += 1;
-                        return nextItem;
-                      });
-
-                      setDataItems(finalDataItems);
-                    }}
-                  />
-                );
-              })}
+        return (
+          <section key={category} className="space-y-3">
+            <div className="flex items-center justify-between px-4">
+              <h2 className="text-lg font-semibold text-gray-800">{CATEGORY_LABELS[category]}</h2>
+              <span className="text-sm text-gray-500">({items.length})</span>
             </div>
-          ) : (
-            <div className="text-sm text-gray-400 italic">No items in this category</div>
-          )}
-        </div>
 
-        <hr className="border-gray-200 mt-2" />
-      </section>
-    );
-  })}
+            <div className="px-4">
+              {hasItems ? (
+                <div className="flex flex-row gap-3 overflow-x-auto py-2">
+                  {itemsWithBlock.map((item, index) => {
+                    if (item.id === 'block-end') {
+                      return (
+                        <div
+                          key="block-end"
+                          data-is-block="true"
+                          style={{
+                            width: CARD_WIDTH,
+                            height: CARD_HEIGHT,
+                            minWidth: CARD_WIDTH,
+                            marginTop: '-32px'
+                          }}
+                          className="bg-gray-200 rounded-lg flex-shrink-0 flex items-center justify-center text-gray-400 text-sm"
+                        >
+                          Block
+                        </div>
+                      );
+                    }
 
-  {editingItem && (
-    <EditDataModal
-      isOpen={!!editingItem}
-      onClose={() => setEditingItem(null)}
-      dataItem={editingItem}
-      onSave={handleEditSave}
-    />
-  )}
+                    const isActive = linkStatus[item.id] ?? true;
+                    const isExpanded = expandedItemId === item.id;
+                    const pos = { x: 0, y: 0 };
 
-  {showAddModal && (
-    <EditDataModal
-      isOpen={showAddModal}
-      onClose={() => setShowAddModal(false)}
-      dataItem={{
-        id: '',
-        name: 'Untitled',
-        type: DATA_TYPES[0].id,
-        userId: user?.id || '',
-        deviceId: deviceId || 'web',
-        nfcLink: '',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }}
-      onSave={async (data) => {
-        if (!data.name) data.name = 'Untitled';
-        if (!data.type) data.type = DATA_TYPES[0].id;
-        if (!data.userId) data.userId = user?.id || '';
+                    return (
+                      <DraggableCard
+                        key={item.id}
+                        item={item}
+                        isActive={isActive}
+                        isExpanded={isExpanded}
+                        pos={pos}
+                        index={index}
+                        siblings={itemsWithBlock}
+                        copiedLink={copiedLink}
+                        formatFileSize={formatFileSize}
+                        onToggleExpand={onToggleExpand}
+                        onCopyLink={copyNFCLink}
+                        onDelete={deleteItem}
+                        onEdit={setEditingItem}
+                        onToggleLinkStatus={onToggleLinkStatus}
+                        onSwap={(from, to) => {
+                          const fromItem = itemsWithBlock[from];
+                          const toItem = itemsWithBlock[to];
+                          
+                          if (fromItem?.id && toItem?.id && toItem.id !== 'block-end') {
+                            handleSwap(fromItem.id, toItem.id);
+                          }
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-400 italic">No items in this category</div>
+              )}
+            </div>
 
-        try {
-          const newItem = await dataService.addDataItem(data);
-          setDataItems((prev) => [newItem, ...prev]);
-          setShowAddModal(false);
-          showToast('success', 'Item Added', 'Data item added successfully.');
-        } catch (error) {
-          console.error(error);
-          showToast('error', 'Add Failed', 'Failed to add new data item.');
-        }
-      }}
-    />
-  )}
-</div>
+            <hr className="border-gray-200 mt-2" />
+          </section>
+        );
+      })}
+
+      {editingItem && (
+        <EditDataModal
+          isOpen={!!editingItem}
+          onClose={() => setEditingItem(null)}
+          dataItem={editingItem}
+          onSave={handleEditSave}
+        />
+      )}
+
+      {showAddModal && (
+        <EditDataModal
+          isOpen={showAddModal}
+          onClose={() => setShowAddModal(false)}
+          dataItem={{
+            id: '',
+            name: 'Untitled',
+            type: DATA_TYPES[0].id,
+            userId: user?.id || '',
+            deviceId: deviceId || 'web',
+            nfcLink: '',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }}
+          onSave={async (data) => {
+            if (!data.name) data.name = 'Untitled';
+            if (!data.type) data.type = DATA_TYPES[0].id;
+            if (!data.userId) data.userId = user?.id || '';
+    
+            try {
+              const newItem = await dataService.addDataItem(data);
+              setDataItems((prev) => [newItem, ...prev]);
+              setShowAddModal(false);
+              showToast('success', 'Item Added', 'Data item added successfully.');
+            } catch (error) {
+              console.error(error);
+              showToast('error', 'Add Failed', 'Failed to add new data item.');
+            }
+          }}
+        />
+      )}
+    </div>
   );
 };
 
