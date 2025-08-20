@@ -26,7 +26,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const CARD_WIDTH = 180;
-const CARD_HEIGHT = 60; // NEW: Reduced card height
+const CARD_HEIGHT = 60;
 
 type Position = { x: number; y: number };
 
@@ -87,7 +87,7 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
     if (!cardEl || !containerEl) return;
 
     const blockEl = containerEl.querySelector<HTMLDivElement>('[data-is-block="true"]');
-
+    
     const cardRect = cardEl.getBoundingClientRect();
     const containerRect = containerEl.getBoundingClientRect();
     
@@ -149,8 +149,8 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
       dragConstraints={dragConstraints}
       onDragStart={calculateConstraints}
       style={{
-        width: isExpanded ? 350 : CARD_WIDTH,
-        height: CARD_HEIGHT,
+        width: isExpanded ? 400 : CARD_WIDTH,
+        height: isExpanded ? 210 : CARD_HEIGHT,
         x: pos.x,
         y: pos.y,
         zIndex: 100,
@@ -407,9 +407,9 @@ const DataManager: React.FC = () => {
                           key="block-end"
                           data-is-block="true"
                           style={{
-                            width: '1000px',
-                            height: 100,
-                            minWidth: '1000px',
+                            width: 1000,
+                            height: CARD_HEIGHT,
+                            minWidth: 1000,
                             marginTop: '-32px',
                             opacity: 0,
                           }}
