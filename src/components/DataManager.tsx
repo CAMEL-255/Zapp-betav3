@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, useDragControls } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { useDevice } from '../context/DeviceContext';
@@ -99,40 +99,41 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
     setDragConstraints({ left, right, top: 0, bottom: 0 });
   };
 
-  const handleDrag = (_event: any, info: any) => {
-    const currentRect = ref.current?.getBoundingClientRect();
-    if (!currentRect) return;
-
-    const movingRight = info.delta.x > 0;
-    const movingLeft = info.delta.x < 0;
-
-    siblings.forEach((sib, sibIndex) => {
-      if (sib.id === item.id || sib.id === 'block-end') {
-        return;
-      }
-
-      const sibEl = document.getElementById(`card-${sib.id}`);
-      if (!sibEl) return;
-      const rect = sibEl.getBoundingClientRect();
-
-      let isSwapping = false;
-
-      // Check if moving right and passing the sibling's left edge
-      if (movingRight && currentRect.right > rect.left && index < sibIndex) {
-        isSwapping = true;
-      }
-
-      // Check if moving left and passing the sibling's right edge
-      if (movingLeft && currentRect.left < rect.right && index > sibIndex) {
-        isSwapping = true;
-      }
-
-      if (isSwapping) {
-        onSwap(index, sibIndex);
-      }
-    });
-  };
-
+  const handleDrag = useCallback(
+    (_event: any, info: any) => {
+      const currentRect = ref.current?.getBoundingClientRect();
+      if (!currentRect) return;
+  
+      const movingRight = info.delta.x > 0;
+      const movingLeft = info.delta.x < 0;
+  
+      siblings.forEach((sib, sibIndex) => {
+        if (sib.id === item.id || sib.id === 'block-end') {
+          return;
+        }
+  
+        const sibEl = document.getElementById(`card-${sib.id}`);
+        if (!sibEl) return;
+        const rect = sibEl.getBoundingClientRect();
+  
+        let isSwapping = false;
+  
+        if (movingRight && (currentRect.left + currentRect.width / 2) > (rect.left + rect.width / 2) && index < sibIndex) {
+          isSwapping = true;
+        }
+  
+        if (movingLeft && (currentRect.left + currentRect.width / 2) < (rect.left + rect.width / 2) && index > sibIndex) {
+          isSwapping = true;
+        }
+  
+        if (isSwapping) {
+          onSwap(index, sibIndex);
+        }
+      });
+    },
+    [index, siblings, item.id, onSwap]
+  );
+  
   return (
     <motion.div
       id={`card-${item.id}`}
