@@ -6,7 +6,7 @@ import { getDataTypeConfig } from '../config/dataTypes';
 import { Zap, Calendar, User, Download, ExternalLink } from 'lucide-react';
 
 const NFCViewer: React.FC = () => {
-  const { type, id } = useParams<{ type: string; id: string }>();
+  const { id } = useParams<{ type: string; id: string }>(); // NEW: Removed 'type' from destructuring
   const [dataItem, setDataItem] = useState<DataItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -24,10 +24,11 @@ const NFCViewer: React.FC = () => {
 
     try {
       const item = await dataService.getDataItem(id);
-      if (!item) {
-        setError('Data not found or no longer available');
-      } else {
+      
+      if (item && item.isPublic) {
         setDataItem(item);
+      } else {
+        setError('Data not found or no longer available');
       }
     } catch (error) {
       console.error('Error loading data item:', error);
@@ -181,9 +182,9 @@ const NFCViewer: React.FC = () => {
         <div className="mt-6 pt-4 border-t border-gray-200 text-center">
           <button
             onClick={() => window.location.href = '/'}
-            className="btn-secondary w-full md:w-auto text-purple-600 border-purple-200 hover:bg-purple-50"
+            className="btn-primary"
           >
-            Get ZButton
+            Go to ZButton
           </button>
         </div>
       </div>

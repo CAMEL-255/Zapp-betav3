@@ -1,15 +1,23 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { DeviceProvider } from './context/DeviceContext';
 import { ToastProvider } from './hooks/useToast';
 import AuthScreen from './components/AuthScreen';
 import Dashboard from './components/Dashboard';
 import NFCViewer from './components/NFCViewer';
+import { motion, AnimatePresence } from 'framer-motion';
 import './App.css';
 
-function AppContent() {
+const pageVariants = {
+  initial: { opacity: 0, x: '100vw' },
+  animate: { opacity: 1, x: 0 },
+  exit: { opacity: 0, x: '-100vw' }
+};
+
+function AnimatedRoutes() {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -20,16 +28,33 @@ function AppContent() {
   }
 
   return (
-    <Router>
-      <Routes>
-        <Route path="/nfc/:type/:id" element={<NFCViewer />} />
+    <AnimatePresence mode="wait">
+      <Routes location={location} key={location.pathname}>
+        <Route path="/nfc/:type/:id" element={
+          <motion.div
+            variants={pageVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={{ duration: 0.5 }}
+          >
+            <NFCViewer />
+          </motion.div>
+        } />
         <Route path="/*" element={
-          <div className="min-h-screen bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-700">
+          <motion.div
+            variants={pageVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={{ duration: 0.5 }}
+            className="min-h-screen bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-700"
+          >
             {user ? <Dashboard /> : <AuthScreen />}
-          </div>
+          </motion.div>
         } />
       </Routes>
-    </Router>
+    </AnimatePresence>
   );
 }
 
@@ -38,7 +63,9 @@ function App() {
     <AuthProvider>
       <DeviceProvider>
         <ToastProvider>
-          <AppContent />
+          <Router>
+            <AppContent />
+          </Router>
         </ToastProvider>
       </DeviceProvider>
     </AuthProvider>

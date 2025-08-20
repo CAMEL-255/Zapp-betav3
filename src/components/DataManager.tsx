@@ -26,7 +26,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const CARD_WIDTH = 180;
-const CARD_HEIGHT = 60;
+const CARD_HEIGHT = 240;
 
 type Position = { x: number; y: number };
 
@@ -57,7 +57,7 @@ type DraggableCardProps = {
   onCopyLink: (item: DataItem) => void;
   onDelete: (id: string) => void;
   onEdit: (item: DataItem) => void;
-  onToggleLinkStatus: (id: string) => void;
+  onToggleLinkStatus: (id: string, newStatus: boolean) => Promise<void>;
 };
 
 const DraggableCard: React.FC<DraggableCardProps> = ({
@@ -173,7 +173,7 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
       )}
 
       <div className="flex items-start justify-between">
-        <div className="flex items-start space-x-3 flex-1 min-w-0">
+        <div className="flex items-center space-x-3 flex-1 min-w-0">
           <motion.div
             whileHover={{ scale: 1.05, rotate: 3 }}
             className={`w-10 h-10 rounded-lg ${typeConfig.color} flex items-center justify-center text-white text-lg flex-shrink-0 cursor-pointer`}
@@ -182,7 +182,7 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
           >
             {typeConfig.icon}
           </motion.div>
-          <div className="min-w-0 flex-1 text-center">
+          <div className="min-w-0 flex-1 text-left">
             <h3 className="font-semibold text-gray-800 truncate">
               {item.fileName || item.name || 'Untitled'}
             </h3>
@@ -219,7 +219,7 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
               className={`w-14 h-6 rounded-full p-1 cursor-pointer flex items-center justify-between text-xs font-semibold ${
                 isActive ? 'bg-green-400' : 'bg-gray-300'
               }`}
-              onClick={() => onToggleLinkStatus(item.id)}
+              onClick={() => onToggleLinkStatus(item.id, !isActive)}
             >
               <span className="ml-1 text-white">ON</span>
               <span className="mr-1 text-white">OFF</span>
@@ -261,7 +261,7 @@ const DataManager: React.FC = () => {
       .then((items) => {
         setDataItems(items);
         const status: Record<string, boolean> = {};
-        items.forEach((item) => (status[item.id] = true));
+        items.forEach((item) => (status[item.id] = item.isPublic ?? true));
         setLinkStatus(status);
       })
       .catch(() => showToast('error', 'Loading Error', 'Error loading your data.'))
@@ -308,10 +308,8 @@ const DataManager: React.FC = () => {
   };
 
   const copyNFCLink = async (item: DataItem) => {
-    if (!linkStatus[item.id]) {
-      showToast('error', 'Link Disabled', 'This NFC link is currently turned off');
-      return;
-    }
+    // NEW: The user wants to be able to copy the link even when it's off.
+    // The check for `linkStatus[item.id]` is removed.
     try {
       await navigator.clipboard.writeText(item.nfcLink);
       setCopiedLink(item.nfcLink);
@@ -331,7 +329,18 @@ const DataManager: React.FC = () => {
   };
 
   const onToggleExpand = (id: string) => setExpandedItemId((prev) => (prev === id ? null : id));
-  const onToggleLinkStatus = (id: string) => setLinkStatus((prev) => ({ ...prev, [id]: !prev[id] }));
+  
+  const onToggleLinkStatus = async (id: string, newStatus: boolean) => {
+    const originalStatus = linkStatus[id];
+    setLinkStatus((prev) => ({ ...prev, [id]: newStatus }));
+    try {
+      await dataService.updateLinkStatus(id, newStatus);
+      showToast('success', 'Link Status Updated', `The NFC link is now ${newStatus ? 'active' : 'inactive'}.`);
+    } catch (error) {
+      showToast('error', 'Update Failed', 'Failed to update link status. Please try again.');
+      setLinkStatus((prev) => ({ ...prev, [id]: originalStatus }));
+    }
+  };
 
   const handleSwap = (fromId: string, toId: string) => {
     setDataItems((prev) => {
@@ -407,9 +416,9 @@ const DataManager: React.FC = () => {
                           key="block-end"
                           data-is-block="true"
                           style={{
-                            width: 1000,
+                            width: '1000px',
                             height: CARD_HEIGHT,
-                            minWidth: 1000,
+                            minWidth: '1000px',
                             marginTop: '-32px',
                             opacity: 0,
                           }}

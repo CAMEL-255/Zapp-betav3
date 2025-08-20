@@ -18,6 +18,7 @@ export interface DataItem {
   nfcLink: string;
   createdAt: Date;
   updatedAt: Date;
+  isPublic?: boolean; // NEW: Added the missing property
 }
 
 export type DataType = 'id_card' | 'license' | 'photo' | 'document' | 'other';

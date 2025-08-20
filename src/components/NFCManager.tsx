@@ -139,11 +139,15 @@ const NFCManager: React.FC = () => {
       return;
     }
     
-    // OLD: const dataItem = await dataService.getDataItem(selectedDataItem);
-    // NEW:
     const dataItem = await dataService.getDataItem(selectedDataItem);
     if (!dataItem) {
       setMessage('Selected data item not found');
+      setMessageType('error');
+      return;
+    }
+
+    if (!dataItem.isPublic) {
+      setMessage('❌ Cannot write a link that is turned off. Please enable the link in the Data Manager.');
       setMessageType('error');
       return;
     }
@@ -155,7 +159,6 @@ const NFCManager: React.FC = () => {
 
       const ndef = new (window as any).NDEFReader();
       
-      // Write the specific data item's NFC link
       const message = {
         records: [
           {

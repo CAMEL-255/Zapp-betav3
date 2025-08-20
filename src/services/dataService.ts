@@ -122,7 +122,8 @@ class DataService {
       fileSize,
       nfcLink: this.generateNFCLink(dbData.id.toString(), data.type),
       createdAt: new Date(dbData.uploaded_at),
-      updatedAt: new Date(dbData.uploaded_at)
+      updatedAt: new Date(dbData.uploaded_at),
+      isPublic: dbData.is_public
     };
   
     return newItem;
@@ -145,11 +146,11 @@ class DataService {
       fileSize: d.file_size,
       nfcLink: this.generateNFCLink(d.id.toString(), d.tags?.[0] || 'unknown'),
       createdAt: new Date(d.uploaded_at),
-      updatedAt: new Date(d.updated_at)
+      updatedAt: new Date(d.updated_at),
+      isPublic: d.is_public // NEW: Pass the status
     }));
   }
   
-  // NEW: A new function to get a single data item by its ID
   async getDataItem(id: string): Promise<DataItem | null> {
     const { data, error } = await supabase
       .from('photo_metadata')
@@ -177,8 +178,23 @@ class DataService {
       fileSize: data.file_size,
       nfcLink: this.generateNFCLink(data.id.toString(), data.tags?.[0] || 'unknown'),
       createdAt: new Date(data.uploaded_at),
-      updatedAt: new Date(data.updated_at)
+      updatedAt: new Date(data.updated_at),
+      isPublic: data.is_public // NEW: Pass the status
     };
+  }
+
+  async updateLinkStatus(id: string, newStatus: boolean): Promise<boolean> {
+    const { error } = await supabase
+      .from('photo_metadata')
+      .update({ is_public: newStatus })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error updating link status:', error);
+      throw error;
+    }
+
+    return true;
   }
 
   async deleteDataItem(id: string): Promise<boolean> {
@@ -198,7 +214,6 @@ class DataService {
       let fileType = updatedData.fileType;
       let fileSize = updatedData.fileSize;
   
-      // لو فيه ملف جديد، نرفعه على Supabase Storage
       if (newFile) {
         fileUrl = await uploadFileToStorage(newFile, updatedData.userId!);
         fileName = newFile.name;
@@ -206,7 +221,6 @@ class DataService {
         fileSize = newFile.size;
       }
   
-      // نجهز البيانات اللي هتتحدث في الجدول
       const updatePayload: any = {
         file_name: fileName || updatedData.name,
         file_url: fileUrl || '',
@@ -217,7 +231,6 @@ class DataService {
         updated_at: new Date().toISOString()
       };
   
-      // تحديث البيانات في Supabase
       const { data: dbData, error } = await supabase
         .from('photo_metadata')
         .update(updatePayload)
@@ -227,7 +240,6 @@ class DataService {
   
       if (error || !dbData) throw error || new Error("Failed to update data item");
   
-      // نرجع العنصر محدث بالكامل
       const newItem: DataItem = {
         id: dbData.id.toString(),
         userId: updatedData.userId!,
@@ -241,13 +253,14 @@ class DataService {
         fileSize,
         nfcLink: `${window.location.origin}/nfc/${updatedData.type}/${dbData.id}`,
         createdAt: new Date(dbData.uploaded_at),
-        updatedAt: new Date(dbData.updated_at)
+        updatedAt: new Date(dbData.updated_at),
+        isPublic: dbData.is_public // NEW: Pass the status
       };
   
       return newItem;
     } catch (err) {
       console.error("updateDataItemWithFile error:", err);
-      throw err; // نرمي الخطأ علشان المودال يعرف انه فشل
+      throw err;
     }
   }
 } 

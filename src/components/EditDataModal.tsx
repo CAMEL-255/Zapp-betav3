@@ -39,7 +39,7 @@ const EditDataModal: React.FC<EditDataModalProps> = ({
     watch
   } = useForm<EditDataFormData>({
     defaultValues: {
-      name: dataItem.name,
+      name: dataItem.name === 'Untitled' ? '' : dataItem.name,
       description: dataItem.description || '',
       type: dataItem.type
     }
@@ -51,7 +51,7 @@ const EditDataModal: React.FC<EditDataModalProps> = ({
   React.useEffect(() => {
     if (isOpen) {
       reset({
-        name: dataItem.name,
+        name: dataItem.name === 'Untitled' ? '' : dataItem.name,
         description: dataItem.description || '',
         type: dataItem.type
       });
@@ -64,13 +64,11 @@ const EditDataModal: React.FC<EditDataModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file size (10MB limit)
     if (file.size > 10 * 1024 * 1024) {
       showToast('error', 'File Too Large', 'File size must be less than 10MB');
       return;
     }
 
-    // Validate file type
     if (!typeConfig.acceptedFileTypes.includes(file.type)) {
       showToast('error', 'Invalid File Type', `Please select a file of type: ${typeConfig.acceptedFileTypes.join(', ')}`);
       return;
@@ -78,7 +76,6 @@ const EditDataModal: React.FC<EditDataModalProps> = ({
 
     setSelectedFile(file);
 
-    // Create preview for images
     if (file.type.startsWith('image/')) {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -94,8 +91,8 @@ const EditDataModal: React.FC<EditDataModalProps> = ({
     setLoading(true);
     try {
       const updatedData: Partial<DataItem> = {
-        userId: dataItem.userId, // مهم جدًا عشان DataService يعرف مين المستخدم
-        name: data.name.trim(),
+        userId: dataItem.userId,
+        name: data.name.trim() || undefined,
         description: data.description.trim() || undefined,
         type: data.type
       };
@@ -286,7 +283,7 @@ const EditDataModal: React.FC<EditDataModalProps> = ({
             whileTap={{ scale: 0.98 }}
             type="button"
             onClick={onClose}
-            className="btn-secondary flex-1"
+            className="btn-secondary flex-1 text-gray-700 border-gray-300 hover:bg-gray-50" // NEW: Adjusted class names
             disabled={loading}
           >
             <X className="w-4 h-4 mr-2" />
