@@ -122,7 +122,7 @@ const EditDataModal: React.FC<EditDataModalProps> = ({
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Data Type Selection */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-3">
+          <label className="block text-sm font-medium text-gray-800 mb-3">
             Data Type
           </label>
           <div className="grid grid-cols-2 gap-2">
@@ -153,7 +153,7 @@ const EditDataModal: React.FC<EditDataModalProps> = ({
 
         {/* Name Input */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-900 mb-2">
             Name 
           </label>
           <input
@@ -172,7 +172,7 @@ const EditDataModal: React.FC<EditDataModalProps> = ({
 
         {/* Description Input */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-900 mb-2">
             Description
           </label>
           <textarea
@@ -185,7 +185,7 @@ const EditDataModal: React.FC<EditDataModalProps> = ({
         {/* Current File Display */}
         {dataItem.fileData && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-900 mb-2">
               Current File
             </label>
             <div className="bg-gray-50 rounded-lg p-4">
@@ -214,7 +214,7 @@ const EditDataModal: React.FC<EditDataModalProps> = ({
 
         {/* File Upload */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-900 mb-2">
             {dataItem.fileData ? 'Replace File (Optional)' : 'Add File (Optional)'}
           </label>
           
