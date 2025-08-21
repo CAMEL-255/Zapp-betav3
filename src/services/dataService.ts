@@ -11,16 +11,6 @@ function getDeviceId(): string {
   return id;
 }
 
-// Helper: convert base64 to File
-function base64ToFile(base64: string, fileName: string): File {
-  const arr = base64.split(',');
-  const mime = arr[0].match(/:(.*?);/)?.[1] || 'application/octet-stream';
-  const bstr = atob(arr[1]);
-  const u8arr = new Uint8Array(bstr.length);
-  for (let i = 0; i < bstr.length; i++) u8arr[i] = bstr.charCodeAt(i);
-  return new File([u8arr], fileName, { type: mime });
-}
-
 // Helper: upload file to Supabase Storage
 async function uploadFileToStorage(file: File, userId: string): Promise<string> {
   const fileExt = file.name.split('.').pop();
@@ -40,7 +30,7 @@ class DataService {
     return `${window.location.origin}/nfc/${type}/${dataItemId}`;
   }
 
-  async addDataItem(data: Partial<DataItem>): Promise<DataItem> {
+  async addDataItem(data: Partial<DataItem>, newFile?: File): Promise<DataItem> {
     console.log('Data received:', data);
   
     if (!data.userId || !data.type || !data.name) {
@@ -48,35 +38,25 @@ class DataService {
       throw new Error("Missing required fields: userId, type, or name");
     }
   
-    let fileUrl = data.fileData;
-    let fileName = data.fileName;
-    let fileType = data.fileType;
-    let fileSize = data.fileSize;
+    let fileUrl = '';
+    let fileName = '';
+    let fileType = '';
+    let fileSize = 0;
   
-    if (data.fileData) {
-      let fileObj: File;
-      if (typeof data.fileData === 'string') {
-        fileObj = base64ToFile(data.fileData, data.fileName || 'file');
-      } else {
-        fileObj = data.fileData as File;
-      }
-      console.log('Uploading file:', fileObj);
-  
-      const deviceId = getDeviceId();
-      const path = `${deviceId}/${data.userId}/${fileObj.name}`;
-      console.log('File path will be:', path);
+    if (newFile) {
+      console.log('Uploading file:', newFile);
   
       try {
-        fileUrl = await uploadFileToStorage(fileObj, data.userId);
+        fileUrl = await uploadFileToStorage(newFile, data.userId);
         console.log('File uploaded, URL:', fileUrl);
       } catch (err) {
         console.error('Error uploading file:', err);
         throw err;
       }
   
-      fileName = fileObj.name;
-      fileType = fileObj.type;
-      fileSize = fileObj.size;
+      fileName = newFile.name;
+      fileType = newFile.type;
+      fileSize = newFile.size;
     }
   
     let dbData;
@@ -122,13 +102,12 @@ class DataService {
       fileSize,
       nfcLink: this.generateNFCLink(dbData.id.toString(), data.type),
       createdAt: new Date(dbData.uploaded_at),
-      updatedAt: new Date(dbData.uploaded_at),
+      updatedAt: new Date(dbData.updated_at),
       isPublic: dbData.is_public
     };
   
     return newItem;
   }
-
 
   async getDataItems(userId: string): Promise<DataItem[]> {
     const { data, error } = await supabase.from('photo_metadata').select('*').eq('uploader_id', userId);
@@ -147,7 +126,7 @@ class DataService {
       nfcLink: this.generateNFCLink(d.id.toString(), d.tags?.[0] || 'unknown'),
       createdAt: new Date(d.uploaded_at),
       updatedAt: new Date(d.updated_at),
-      isPublic: d.is_public // NEW: Pass the status
+      isPublic: d.is_public
     }));
   }
   
@@ -179,7 +158,7 @@ class DataService {
       nfcLink: this.generateNFCLink(data.id.toString(), data.tags?.[0] || 'unknown'),
       createdAt: new Date(data.uploaded_at),
       updatedAt: new Date(data.updated_at),
-      isPublic: data.is_public // NEW: Pass the status
+      isPublic: data.is_public
     };
   }
 
@@ -254,7 +233,7 @@ class DataService {
         nfcLink: `${window.location.origin}/nfc/${updatedData.type}/${dbData.id}`,
         createdAt: new Date(dbData.uploaded_at),
         updatedAt: new Date(dbData.updated_at),
-        isPublic: dbData.is_public // NEW: Pass the status
+        isPublic: dbData.is_public
       };
   
       return newItem;

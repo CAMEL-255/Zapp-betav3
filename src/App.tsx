@@ -63,7 +63,7 @@ const WrappedApp = () => {
       <DeviceProvider>
         <ToastProvider>
           <Router>
-            <App /> {/* Changed from <AppContent /> to <App /> */}
+            <App />
           </Router>
         </ToastProvider>
       </DeviceProvider>

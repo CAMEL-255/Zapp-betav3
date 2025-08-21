@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext'; // FIX: Added missing import for useAuth
 import { dataService } from '../services/dataService';
 import { DataItem } from '../types';
 import { getDataTypeConfig } from '../config/dataTypes';
 import { Wifi, WifiOff, AlertCircle, CheckCircle, Radio, Smartphone } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 interface NFCStatus {
   supported: boolean;

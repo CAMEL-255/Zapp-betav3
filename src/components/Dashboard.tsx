@@ -153,7 +153,7 @@ const Dashboard: React.FC = () => {
       <div className="space-y-6">
         {activeTab === 'data' && <DataManager />}
         {activeTab === 'upload' && <FileUpload />}
-        {activeTab === 'nfc' && <NFCManager />} {/* NEW: Ensure NFCManager is rendered when activeTab is 'nfc' */}
+        {activeTab === 'nfc' && <NFCManager />}
       </div>
     </div>
   );

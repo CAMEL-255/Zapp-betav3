@@ -26,7 +26,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const CARD_WIDTH = 180;
-const CARD_HEIGHT = 60;
+const CARD_HEIGHT = 240;
 
 type Position = { x: number; y: number };
 
@@ -160,6 +160,7 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 0 }}
       className="card p-2 hover:shadow-lg transition-shadow relative bg-white rounded-lg"
+      transition={{ type: "spring", stiffness: 300, damping: 20 }}
     >
       {!isExpanded && (
         <motion.div
@@ -176,6 +177,7 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
         <div className="flex items-center space-x-3 flex-1 min-w-0">
           <motion.div
             whileHover={{ scale: 1.05, rotate: 3 }}
+            whileTap={{ scale: 0.95 }}
             className={`w-10 h-10 rounded-lg ${typeConfig.color} flex items-center justify-center text-white text-lg flex-shrink-0 cursor-pointer`}
             onClick={() => onToggleExpand(item.id)}
             title="Show Info"
@@ -204,15 +206,15 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
         {isExpanded && (
           <div className="flex flex-col items-center space-y-2 flex-shrink-0 ml-4">
             <div className="flex items-center space-x-2">
-              <button onClick={() => onEdit(item)} className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg">
+              <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }} onClick={() => onEdit(item)} className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg">
                 <Edit className="w-4 h-4" />
-              </button>
-              <button onClick={() => onCopyLink(item)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
+              </motion.button>
+              <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }} onClick={() => onCopyLink(item)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
                 {copiedLink === item.nfcLink ? <Check className="w-4 h-4 text-green-600" /> : <Link className="w-4 h-4" />}
-              </button>
-              <button onClick={() => onDelete(item.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
+              </motion.button>
+              <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }} onClick={() => onDelete(item.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg">
                 <Trash2 className="w-4 h-4" />
-              </button>
+              </motion.button>
             </div>
 
             <div
@@ -223,11 +225,12 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
             >
               <span className="ml-1 text-white">ON</span>
               <span className="mr-1 text-white">OFF</span>
-              <div
+              <motion.div
                 className="w-5 h-5 bg-white rounded-full shadow-md transition-transform"
                 style={{
                   transform: isActive ? 'translateX(28px)' : 'translateX(0)',
                 }}
+                transition={{ type: "spring", stiffness: 700, damping: 30 }}
               />
             </div>
           </div>
@@ -308,8 +311,10 @@ const DataManager: React.FC = () => {
   };
 
   const copyNFCLink = async (item: DataItem) => {
-    // NEW: The user wants to be able to copy the link even when it's off.
-    // The check for `linkStatus[item.id]` is removed.
+    if (!linkStatus[item.id]) {
+      showToast('error', 'Link Disabled', 'This NFC link is currently turned off');
+      return;
+    }
     try {
       await navigator.clipboard.writeText(item.nfcLink);
       setCopiedLink(item.nfcLink);
@@ -416,11 +421,10 @@ const DataManager: React.FC = () => {
                           key="block-end"
                           data-is-block="true"
                           style={{
-                            width: '1000px',
+                            width: CARD_WIDTH,
                             height: CARD_HEIGHT,
-                            minWidth: '1000px',
-                            marginTop: '-32px',
-                            opacity: 0,
+                            minWidth: CARD_WIDTH,
+                            marginTop: '-32px'
                           }}
                           className="bg-gray-200 rounded-lg flex-shrink-0 flex items-center justify-center text-gray-400 text-sm"
                         >
