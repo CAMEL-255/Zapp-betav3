@@ -11,19 +11,33 @@ function getDeviceId(): string {
   return id;
 }
 
-// Helper: upload file to Supabase Storage
+// Helper: upload file to Supabase Storage ( النسخة المعدلة )
 async function uploadFileToStorage(file: File, userId: string): Promise<string> {
   const fileExt = file.name.split('.').pop();
   const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
   const deviceId = getDeviceId();
   const filePath = `${deviceId}/${userId}/${fileName}`;
 
-  const { error } = await supabase.storage.from('photos').upload(filePath, file, { cacheControl: '3600', upsert: true });
-  if (error) throw error;
+  // تم تغيير اسم المتغير ليكون أوضح
+  const { error: uploadError } = await supabase.storage.from('photos').upload(filePath, file, { cacheControl: '3600', upsert: true });
+
+  // 1. إضافة تحقق صريح من خطأ الرفع
+  if (uploadError) {
+    console.error("Supabase storage upload error:", uploadError);
+    throw uploadError;
+  }
 
   const { data } = supabase.storage.from('photos').getPublicUrl(filePath);
+
+  // 2. إضافة تحقق حيوي للتأكد من أن الرابط العام تم إنشاؤه
+  if (!data || !data.publicUrl) {
+    console.error("Failed to get public URL after upload. Is the 'photos' bucket set to 'Public' in Supabase dashboard?");
+    throw new Error("Could not generate public URL for the uploaded file.");
+  }
+
   return data.publicUrl;
 }
+
 
 class DataService {
   private generateNFCLink(dataItemId: string, type: DataType): string {
