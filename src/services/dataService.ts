@@ -66,40 +66,29 @@ const base64ToFile = (base64: string, fileName: string, mimeType?: string): File
 };
 
 class DataService {
+  updateDataItemWithFile(id: string, arg1: { userId: string | undefined; id?: string | undefined; deviceId?: string | undefined; type?: DataType | undefined; name?: string | undefined; description?: string | undefined; fileData?: string | undefined; fileName?: string | undefined; fileType?: string | undefined; fileSize?: number | undefined; nfcLink?: string | undefined; createdAt?: Date | undefined; updatedAt?: Date | undefined; isPublic?: boolean | undefined; }, newFile: File): DataItem | PromiseLike<DataItem | null> | null {
+    throw new Error('Method not implemented.');
+  }
   private generateNFCLink(dataItemId: string, type: DataType): string {
     const baseUrl = window.location.origin;
     return `${baseUrl}/nfc/${type}/${dataItemId}`;
   }
 
-  async createDataItem(
-    userId: string,
-    deviceId: string,
-    type: DataType,
-    name: string,
-    description?: string,
-    fileData?: string,
-    fileName?: string,
-    fileType?: string,
-    fileSize?: number
-  ): Promise<DataItem> {
-    // Normalize if caller passed a payload object as first argument
-    if (typeof userId === 'object' && userId !== null) {
-      const p = userId as unknown as { userId: string; deviceId?: string; type?: DataType; name?: string; description?: string; fileData?: string; fileName?: string; fileType?: string; fileSize?: number };
-      // assign extracted values back to parameters
-      userId = p.userId;
-      deviceId = p.deviceId ?? deviceId;
-      type = p.type ?? type;
-      name = p.name ?? name;
-      description = p.description ?? description;
-      fileData = p.fileData ?? fileData;
-      fileName = p.fileName ?? fileName;
-      fileType = p.fileType ?? fileType;
-      fileSize = p.fileSize ?? fileSize;
-    }
+  async createDataItem(payload: {
+    userId: string;
+    deviceId: string;
+    type: DataType;
+    name: string;
+    description?: string;
+    fileData?: string; // base64 string or public URL
+    fileName?: string;
+    fileType?: string;
+    fileSize?: number;
+  }): Promise<DataItem> {
+    const { userId, deviceId, type, name, description, fileData, fileName, fileType, fileSize } = payload;
 
-    // Quick sanity check
     if (!userId || typeof userId !== 'string') {
-      console.error('createDataItem: invalid userId after normalization:', userId);
+      console.error('createDataItem: invalid userId:', userId);
       throw new Error('Invalid userId');
     }
 
@@ -119,11 +108,17 @@ class DataService {
       if (!userData) {
         // User doesn't exist, create them
         console.log(`User with ID ${userId} not found, creating new user.`);
-        const { data: authUser } = await supabase.auth.getUser();
-        if (authUser.user) {
+        const { data: authUser, error: authError } = await supabase.auth.getUser();
+
+        if (authError) {
+          console.error('Error fetching authenticated user:', authError.message);
+          throw authError;
+        }
+
+        if (authUser.user && authUser.user.email) {
           const { error: insertUserError } = await supabase.from('users').insert({
             id: userId,
-            email: authUser.user.email || '',
+            email: authUser.user.email,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           });
@@ -133,8 +128,8 @@ class DataService {
           }
           console.log(`User with ID ${userId} created successfully.`);
         } else {
-          console.error('No authenticated user found to create new user entry.');
-          throw new Error('Authentication required to create user entry.');
+          console.error('No authenticated user or email found to create new user entry.');
+          throw new Error('Authenticated user and email required to create user entry.');
         }
       } else {
         console.log(`User with ID ${userId} already exists.`);
@@ -165,14 +160,14 @@ class DataService {
         .from('photo_metadata')
         .insert({
           file_name: fileName || name,
-          file_path: publicFileUrl ? `/${userId}/${Date.now()}-${fileName || name}` : undefined, // Only set if publicFileUrl exists
-          file_url: publicFileUrl || '',
+          file_path: publicFileUrl && !fileData?.startsWith('data:') ? `/${userId}/${Date.now()}-${fileName || name}` : null, // Set to null if base64 or no public URL
+          file_url: publicFileUrl || fileData || '', // Use publicFileUrl if available, else fileData (base64), else empty string
           file_size: fileSize || 0,
           mime_type: resolvedFileType || 'application/octet-stream',
           uploader_id: userId,
           description: description,
           tags: [type],
-          is_public: !!publicFileUrl // Mark as public only if a public URL was successfully generated
+          is_public: !!fileData // Mark as public if any fileData (URL or base64) exists
         })
         .select()
         .single(); // Keep single here, as we expect a single item to be inserted
@@ -327,7 +322,7 @@ class DataService {
     }
   }
 
-  async updateDataItem(id: string, updates: Partial<DataItem>): Promise<DataItem | null> {
+  async updateDataItem(id: string, updates: Partial<DataItem>, newFile?: File): Promise<DataItem | null> {
     try {
       const numericId = parseInt(id);
       if (isNaN(numericId)) {
@@ -336,10 +331,48 @@ class DataService {
       }
 
       const updateData: any = {};
+      let resolvedFileType = updates.fileType || getMimeTypeFromExt(updates.fileName) || undefined;
+
+      if (newFile && updates.userId) {
+        try {
+          const publicFileUrl = await uploadFileToStorage(newFile, updates.userId, resolvedFileType);
+          if (!resolvedFileType) {
+            resolvedFileType = newFile.type || getMimeTypeFromExt(newFile.name) || 'application/octet-stream';
+          }
+          updateData.file_url = publicFileUrl;
+          updateData.file_name = newFile.name;
+          updateData.file_size = newFile.size;
+          updateData.mime_type = resolvedFileType;
+          updateData.is_public = true; // Mark as public if a new file is uploaded
+        } catch (storageError) {
+          console.warn('Failed to upload new file to storage during update, keeping existing file data:', storageError);
+          // If new file upload fails, we don't update file_url, file_name, etc.
+          // The existing file data in the DB will be retained.
+        }
+      } else if (updates.fileData !== undefined) {
+        // If no new file is uploaded, but fileData is explicitly provided in updates, use it.
+        // This handles cases where fileData might be cleared or updated without a new file upload.
+        updateData.file_url = updates.fileData;
+        // If fileData is explicitly set to null/undefined, also clear related file metadata
+        if (!updates.fileData) {
+          updateData.file_name = null;
+          updateData.file_size = 0;
+          updateData.mime_type = null;
+          updateData.is_public = false;
+        }
+      }
+
       if (updates.name) updateData.file_name = updates.name;
       if (updates.description !== undefined) updateData.description = updates.description;
       if (updates.type) updateData.tags = [updates.type];
-      if (updates.isPublic !== undefined) updateData.is_public = updates.isPublic; // Add this line
+      if (updates.isPublic !== undefined) updateData.is_public = updates.isPublic;
+      // Only update file metadata if a new file was NOT uploaded and the update explicitly provides it
+      if (!newFile) {
+        if (updates.fileName !== undefined) updateData.file_name = updates.fileName;
+        if (updates.fileSize !== undefined) updateData.file_size = updates.fileSize;
+        if (updates.fileType !== undefined) updateData.mime_type = updates.fileType;
+      }
+      updateData.updated_at = new Date().toISOString(); // Always update timestamp
 
       const { data, error } = await supabase
         .from('photo_metadata')
@@ -356,67 +389,6 @@ class DataService {
       return this.getDataItem(id);
     } catch (error) {
       console.error('Error updating data item:', error);
-      if (error instanceof Error) {
-        console.error('Error details:', error.message, error.stack);
-      }
-      return null;
-    }
-  }
-
-  async updateDataItemWithFile(id: string, updates: Partial<DataItem>, newFile?: File): Promise<DataItem | null> {
-    try {
-      const numericId = parseInt(id);
-      if (isNaN(numericId)) {
-        console.error('Invalid ID format:', id);
-        return null;
-      }
-
-      let publicFileUrl: string | undefined = updates.fileData;
-      let resolvedFileType = updates.fileType || getMimeTypeFromExt(updates.fileName) || undefined;
-
-      if (newFile && updates.userId) {
-        try {
-          publicFileUrl = await uploadFileToStorage(newFile, updates.userId, resolvedFileType);
-          if (!resolvedFileType) {
-            resolvedFileType = newFile.type || getMimeTypeFromExt(newFile.name) || 'application/octet-stream';
-          }
-          updates.fileData = publicFileUrl;
-          updates.fileName = newFile.name;
-          updates.fileSize = newFile.size;
-          updates.fileType = resolvedFileType;
-          updates.isPublic = true; // Mark as public if a new file is uploaded
-        } catch (storageError) {
-          console.warn('Failed to upload new file to storage during update, keeping existing file data:', storageError);
-          // If new file upload fails, revert to existing file data or keep original updates
-        }
-      }
-
-      const updateData: any = {};
-      if (updates.name) updateData.file_name = updates.name;
-      if (updates.description !== undefined) updateData.description = updates.description;
-      if (updates.type) updateData.tags = [updates.type];
-      if (updates.fileData !== undefined) updateData.file_url = updates.fileData;
-      if (updates.fileName !== undefined) updateData.file_name = updates.fileName;
-      if (updates.fileSize !== undefined) updateData.file_size = updates.fileSize;
-      if (updates.fileType !== undefined) updateData.mime_type = updates.fileType;
-      if (updates.isPublic !== undefined) updateData.is_public = updates.isPublic;
-      updateData.updated_at = new Date().toISOString(); // Always update timestamp
-
-      const { data, error } = await supabase
-        .from('photo_metadata')
-        .update(updateData)
-        .eq('id', numericId)
-        .select()
-        .single();
-
-      if (error || !data) {
-        console.error('Error updating data item with file:', error?.message, error?.details);
-        return null;
-      }
-
-      return this.getDataItem(id);
-    } catch (error) {
-      console.error('Error updating data item with file:', error);
       if (error instanceof Error) {
         console.error('Error details:', error.message, error.stack);
       }
@@ -489,32 +461,28 @@ class DataService {
   }
 
   // Add this wrapper so callers using addDataItem keep working
-  public addDataItem(
-    userIdOrPayload: string | { userId: string; deviceId?: string; type: DataType; name: string; description?: string; fileData?: string; fileName?: string; fileType?: string; fileSize?: number },
-    deviceId?: string,
-    type?: DataType,
-    name?: string,
-    description?: string,
-    fileData?: string,
-    fileName?: string,
-    fileType?: string,
-    fileSize?: number
-  ): Promise<DataItem> {
-    if (typeof userIdOrPayload === 'object' && userIdOrPayload !== null) {
-      const p = userIdOrPayload;
-      return this.createDataItem(
-        p.userId,
-        p.deviceId || 'web',
-        p.type,
-        p.name,
-        p.description,
-        p.fileData,
-        p.fileName,
-        p.fileType,
-        p.fileSize
-      );
-    }
-    return this.createDataItem(userIdOrPayload as string, deviceId!, type!, name!, description, fileData, fileName, fileType, fileSize); // Non-null assertion for simplicity, consider adding validation
+  public addDataItem(payload: {
+    userId: string;
+    deviceId?: string;
+    type: DataType;
+    name: string;
+    description?: string;
+    fileData?: string;
+    fileName?: string;
+    fileType?: string;
+    fileSize?: number;
+  }): Promise<DataItem> {
+    return this.createDataItem({
+      userId: payload.userId,
+      deviceId: payload.deviceId || 'web',
+      type: payload.type,
+      name: payload.name,
+      description: payload.description,
+      fileData: payload.fileData,
+      fileName: payload.fileName,
+      fileType: payload.fileType,
+      fileSize: payload.fileSize,
+    });
   }
 }
 
