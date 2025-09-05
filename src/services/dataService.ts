@@ -66,9 +66,6 @@ const base64ToFile = (base64: string, fileName: string, mimeType?: string): File
 };
 
 class DataService {
-  updateDataItemWithFile(id: string, arg1: { userId: string | undefined; id?: string | undefined; deviceId?: string | undefined; type?: DataType | undefined; name?: string | undefined; description?: string | undefined; fileData?: string | undefined; fileName?: string | undefined; fileType?: string | undefined; fileSize?: number | undefined; nfcLink?: string | undefined; createdAt?: Date | undefined; updatedAt?: Date | undefined; isPublic?: boolean | undefined; }, newFile: File): DataItem | PromiseLike<DataItem | null> | null {
-    throw new Error('Method not implemented.');
-  }
   private generateNFCLink(dataItemId: string, type: DataType): string {
     const baseUrl = window.location.origin;
     return `${baseUrl}/nfc/${type}/${dataItemId}`;

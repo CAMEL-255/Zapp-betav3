@@ -79,7 +79,7 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
   const dragControls = useDragControls();
   const typeConfig = getDataTypeConfig(item.type);
   const ref = useRef<HTMLDivElement>(null);
-  const [dragConstraints, setDragConstraints] = useState({ left: 0, right: 0, top: 0, bottom: 0 });
+  const [dragConstraints, setDragConstraints] = useState<{ insetInlineStart: number; right: number; top: number; bottom: number; }>({ insetInlineStart: 0, right: 0, top: 0, bottom: 0 });
 
   const calculateConstraints = () => {
     const cardEl = ref.current;
@@ -91,14 +91,14 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
     const cardRect = cardEl.getBoundingClientRect();
     const containerRect = containerEl.getBoundingClientRect();
     
-    const left = containerRect.left - cardRect.left;
+    const insetInlineStart = containerRect.left - cardRect.left;
     
     let right = 0;
     if (blockEl) {
         right = blockEl.getBoundingClientRect().left - cardRect.right;
     }
 
-    setDragConstraints({ left, right, top: 0, bottom: 0 });
+    setDragConstraints({ insetInlineStart, right, top: 0, bottom: 0 });
   };
 
   const handleDrag = useCallback(
@@ -500,7 +500,7 @@ const DataManager: React.FC = () => {
             if (!data.userId) data.userId = user?.id || '';
     
             try {
-              const newItem = await dataService.addDataItem(data);
+              const newItem = await dataService.addDataItem(data as DataItem);
               setDataItems((prev) => [newItem, ...prev]);
               setShowAddModal(false);
               showToast('success', 'Item Added', 'Data item added successfully.');
