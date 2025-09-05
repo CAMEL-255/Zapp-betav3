@@ -1,260 +1,411 @@
 import { DataItem, DataType } from '../types';
 import { supabase } from '../lib/supabase';
 
-// Helper: get or create deviceId
-function getDeviceId(): string {
-  let id = localStorage.getItem('device_id');
-  if (!id) {
-    id = crypto.randomUUID();
-    localStorage.setItem('device_id', id);
+// Helper: infer mime type from filename extension
+function getMimeTypeFromExt(fileName?: string): string | null {
+  if (!fileName) return null;
+  const ext = fileName.split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'jpg':
+    case 'jpeg': return 'image/jpeg';
+    case 'png': return 'image/png';
+    case 'gif': return 'image/gif';
+    case 'webp': return 'image/webp';
+    case 'pdf': return 'application/pdf';
+    default: return null;
   }
-  return id;
 }
 
-// Helper: upload file to Supabase Storage ( النسخة المعدلة )
-async function uploadFileToStorage(file: File, userId: string): Promise<string> {
+// Helper function to upload file to Supabase Storage
+const uploadFileToStorage = async (file: File, userId: string, mimeType?: string): Promise<string> => {
   const fileExt = file.name.split('.').pop();
   const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-  const deviceId = getDeviceId();
-  const filePath = `${deviceId}/${userId}/${fileName}`;
+  const filePath = `${userId}/${fileName}`;
 
-  // تم تغيير اسم المتغير ليكون أوضح
-  const { error: uploadError } = await supabase.storage.from('photos').upload(filePath, file, { cacheControl: '3600', upsert: true });
+  const { error: uploadError } = await supabase.storage
+    .from('photos')
+    .upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: false,
+      contentType: mimeType || file.type || undefined
+    });
 
-  // 1. إضافة تحقق صريح من خطأ الرفع
   if (uploadError) {
-    console.error("Supabase storage upload error:", uploadError);
+    console.error('Supabase Storage upload error:', uploadError);
     throw uploadError;
   }
+  console.log(`File ${fileName} uploaded successfully to Supabase Storage.`);
 
-  const { data } = supabase.storage.from('photos').getPublicUrl(filePath);
+  // Get the public URL
+  const { data: publicUrlData } = supabase.storage
+    .from('photos')
+    .getPublicUrl(filePath);
 
-  // 2. إضافة تحقق حيوي للتأكد من أن الرابط العام تم إنشاؤه
-  if (!data || !data.publicUrl) {
-    console.error("Failed to get public URL after upload. Is the 'photos' bucket set to 'Public' in Supabase dashboard?");
-    throw new Error("Could not generate public URL for the uploaded file.");
+  // Supabase getPublicUrl does not return an error object directly,
+  // it returns data.publicUrl as null if the file doesn't exist or isn't public.
+  // We should check publicUrlData.publicUrl for validity.
+  if (!publicUrlData || !publicUrlData.publicUrl) {
+    throw new Error('Failed to get public URL for the uploaded file.');
   }
 
-  return data.publicUrl;
-}
+  return publicUrlData.publicUrl;
+};
 
+// Helper function to convert base64 to File object
+const base64ToFile = (base64: string, fileName: string, mimeType?: string): File => {
+  const arr = base64.split(',');
+  const inferred = arr[0].match(/:(.*?);/)?.[1];
+  const mime = mimeType || inferred || 'application/octet-stream';
+  const bstr = atob(arr[arr.length - 1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new File([u8arr], fileName, { type: mime });
+};
 
 class DataService {
   private generateNFCLink(dataItemId: string, type: DataType): string {
-    return `${window.location.origin}/nfc/${type}/${dataItemId}`;
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/nfc/${type}/${dataItemId}`;
   }
 
-  async addDataItem(data: Partial<DataItem>, newFile?: File): Promise<DataItem> {
-    console.log('Data received:', data);
-  
-    if (!data.userId || !data.type || !data.name) {
-      console.error('Missing required fields: userId, type, or name');
-      throw new Error("Missing required fields: userId, type, or name");
-    }
-  
-    let fileUrl = '';
-    let fileName = '';
-    let fileType = '';
-    let fileSize = 0;
-  
-    if (newFile) {
-      console.log('Uploading file:', newFile);
-  
-      try {
-        fileUrl = await uploadFileToStorage(newFile, data.userId);
-        console.log('File uploaded, URL:', fileUrl);
-      } catch (err) {
-        console.error('Error uploading file:', err);
-        throw err;
-      }
-  
-      fileName = newFile.name;
-      fileType = newFile.type;
-      fileSize = newFile.size;
-    }
-  
-    let dbData;
+  async createDataItem(
+    userId: string,
+    deviceId: string,
+    type: DataType,
+    name: string,
+    description?: string,
+    fileData?: string,
+    fileName?: string,
+    fileType?: string,
+    fileSize?: number
+  ): Promise<DataItem> {
     try {
-      const result = await supabase
+      // First ensure user exists in users table
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle(); // Use maybeSingle to handle cases where no user is found without throwing an error
+
+      if (userError) {
+       console.error('Error checking user existence:', userError.message, userError.details);
+       throw userError; // Re-throw to indicate a problem with the check itself
+     }
+
+      if (!userData) {
+        // User doesn't exist, create them
+        console.log(`User with ID ${userId} not found, creating new user.`);
+        const { data: authUser } = await supabase.auth.getUser();
+        if (authUser.user) {
+          const { error: insertUserError } = await supabase.from('users').insert({
+            id: userId,
+            email: authUser.user.email || '',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+          if (insertUserError) {
+            console.error('Error creating new user:', insertUserError);
+            throw insertUserError;
+          }
+          console.log(`User with ID ${userId} created successfully.`);
+        } else {
+          console.error('No authenticated user found to create new user entry.');
+          throw new Error('Authentication required to create user entry.');
+        }
+      } else {
+        console.log(`User with ID ${userId} already exists.`);
+      }
+
+      let publicFileUrl: string | undefined = fileData;
+      // Determine resolved file type (prefer provided fileType, else infer from filename or base64)
+      let resolvedFileType = fileType || getMimeTypeFromExt(fileName) || undefined;
+
+      // If we have file data, upload it to Supabase Storage for public access
+      if (fileData && fileName) {
+        try {
+          const file = base64ToFile(fileData, fileName, resolvedFileType);
+          publicFileUrl = await uploadFileToStorage(file, userId, resolvedFileType);
+          // Ensure mime_type is set for DB insert
+          if (!resolvedFileType) {
+            resolvedFileType = file.type || getMimeTypeFromExt(fileName) || 'application/octet-stream';
+          }
+        } catch (storageError) {
+          console.warn('Failed to upload to storage, using base64 fallback:', storageError);
+          // If upload fails, publicFileUrl remains the original fileData (base64)
+          // This means the file will be stored as base64 in the database, not as a public URL
+        }
+      }
+
+      // Insert photo metadata
+      const { data: insertData, error: insertError } = await supabase
         .from('photo_metadata')
         .insert({
-          file_name: fileName || data.name,
-          file_path: `/${data.userId}/${Date.now()}-${fileName || data.name}`,
-          file_url: fileUrl || '',
+          file_name: fileName || name,
+          file_path: publicFileUrl ? `/${userId}/${Date.now()}-${fileName || name}` : undefined, // Only set if publicFileUrl exists
+          file_url: publicFileUrl || '',
           file_size: fileSize || 0,
-          mime_type: fileType || 'application/octet-stream',
-          uploader_id: data.userId,
-          description: data.description || '',
-          tags: [data.type],
-          is_public: true
+          mime_type: resolvedFileType || 'application/octet-stream',
+          uploader_id: userId,
+          description: description,
+          tags: [type],
+          is_public: !!publicFileUrl // Mark as public only if a public URL was successfully generated
         })
         .select()
-        .single();
-  
-      dbData = result.data;
-      if (result.error || !dbData) {
-        console.error('Error inserting into database:', result.error);
-        throw result.error || new Error("Failed to insert data item");
+        .single(); // Keep single here, as we expect a single item to be inserted
+
+      if (insertError) {
+        console.error('Database insert error:', insertError.message, insertError.details);
+        throw insertError;
       }
-  
-      console.log('Database insert result:', dbData);
-    } catch (err) {
-      console.error('Database insert failed:', err);
-      throw err;
+
+      const dataItem: DataItem = {
+        id: insertData.id.toString(),
+        userId,
+        deviceId,
+        type,
+        name,
+        description,
+        fileData: publicFileUrl, // This will be the public URL if uploaded, or base64 if fallback
+        fileName,
+        fileType: resolvedFileType, // Use the resolved file type
+        fileSize,
+        nfcLink: this.generateNFCLink(insertData.id.toString(), type),
+        createdAt: new Date(insertData.uploaded_at),
+        updatedAt: new Date(insertData.uploaded_at)
+      };
+
+      return dataItem;
+    } catch (error) {
+      console.error('Error creating data item:', error);
+      // Log specific details of the error if available
+      if (error instanceof Error) {
+        console.error('Error details:', error.message, error.stack);
+      }
+      throw error;
     }
-  
-    const newItem: DataItem = {
-      id: dbData.id.toString(),
-      userId: data.userId,
-      deviceId: getDeviceId(),
-      type: data.type,
-      name: data.name,
-      description: data.description || '',
-      fileData: fileUrl || '',
-      fileName,
-      fileType,
-      fileSize,
-      nfcLink: this.generateNFCLink(dbData.id.toString(), data.type),
-      createdAt: new Date(dbData.uploaded_at),
-      updatedAt: new Date(dbData.updated_at),
-      isPublic: dbData.is_public
-    };
-  
-    return newItem;
   }
 
   async getDataItems(userId: string): Promise<DataItem[]> {
-    const { data, error } = await supabase.from('photo_metadata').select('*').eq('uploader_id', userId);
-    if (error) throw error;
-    return data.map((d: any) => ({
-      id: d.id.toString(),
-      userId: d.uploader_id,
-      deviceId: getDeviceId(),
-      type: d.tags?.[0] || 'unknown',
-      name: d.file_name,
-      description: d.description || '',
-      fileData: d.file_url || '',
-      fileName: d.file_name,
-      fileType: d.mime_type,
-      fileSize: d.file_size,
-      nfcLink: this.generateNFCLink(d.id.toString(), d.tags?.[0] || 'unknown'),
-      createdAt: new Date(d.uploaded_at),
-      updatedAt: new Date(d.updated_at),
-      isPublic: d.is_public
-    }));
-  }
-  
-  async getDataItem(id: string): Promise<DataItem | null> {
-    const { data, error } = await supabase
-      .from('photo_metadata')
-      .select('*')
-      .eq('id', id)
-      .single();
-    
-    if (error) {
-      console.error('Error fetching single data item:', error);
-      return null;
-    }
+    try {
+      const { data, error } = await supabase
+        .from('photo_metadata')
+        .select('*')
+        .eq('uploader_id', userId)
+        .order('uploaded_at', { ascending: false });
 
-    if (!data) return null;
+      if (error) {
+        console.error('Database fetch error:', error.message, error.details);
+        throw error;
+      }
 
-    return {
-      id: data.id.toString(),
-      userId: data.uploader_id,
-      deviceId: getDeviceId(),
-      type: data.tags?.[0] || 'unknown',
-      name: data.file_name,
-      description: data.description || '',
-      fileData: data.file_url || '',
-      fileName: data.file_name,
-      fileType: data.mime_type,
-      fileSize: data.file_size,
-      nfcLink: this.generateNFCLink(data.id.toString(), data.tags?.[0] || 'unknown'),
-      createdAt: new Date(data.uploaded_at),
-      updatedAt: new Date(data.updated_at),
-      isPublic: data.is_public
-    };
-  }
-
-  async updateLinkStatus(id: string, newStatus: boolean): Promise<boolean> {
-    const { error } = await supabase
-      .from('photo_metadata')
-      .update({ is_public: newStatus })
-      .eq('id', id);
-
-    if (error) {
-      console.error('Error updating link status:', error);
+      return (data || []).map(item => ({
+        id: item.id.toString(),
+        userId: item.uploader_id,
+        deviceId: 'web', // Default for web uploads
+        type: (item.tags?.[0] || 'other') as DataType,
+        name: item.file_name,
+        description: item.description,
+        fileData: item.file_url, // This will be the public URL
+        fileName: item.file_name,
+        fileType: item.mime_type,
+        fileSize: item.file_size,
+        nfcLink: this.generateNFCLink(item.id.toString(), (item.tags?.[0] || 'other') as DataType),
+        createdAt: new Date(item.uploaded_at),
+        updatedAt: new Date(item.uploaded_at)
+      }));
+    } catch (error) {
+      console.error('Error fetching data items:', error);
+      if (error instanceof Error) {
+        console.error('Error details:', error.message, error.stack);
+      }
       throw error;
     }
+  }
 
-    return true;
+  async getDataItemsByType(userId: string, type: DataType): Promise<DataItem[]> {
+    try {
+      const { data, error } = await supabase
+        .from('photo_metadata')
+        .select('*')
+        .eq('uploader_id', userId)
+        .contains('tags', [type])
+        .order('uploaded_at', { ascending: false });
+
+      if (error) {
+        console.error('Database fetch by type error:', error.message, error.details);
+        throw error;
+      }
+
+      return (data || []).map(item => ({
+        id: item.id.toString(),
+        userId: item.uploader_id,
+        deviceId: 'web',
+        type: (item.tags?.[0] || 'other') as DataType,
+        name: item.file_name,
+        description: item.description,
+        fileData: item.file_url,
+        fileName: item.file_name,
+        fileType: item.mime_type,
+        fileSize: item.file_size,
+        nfcLink: this.generateNFCLink(item.id.toString(), (item.tags?.[0] || 'other') as DataType),
+        createdAt: new Date(item.uploaded_at),
+        updatedAt: new Date(item.uploaded_at)
+      }));
+    } catch (error) {
+      console.error('Error fetching data items by type:', error);
+      if (error instanceof Error) {
+        console.error('Error details:', error.message, error.stack);
+      }
+      throw error;
+    }
+  }
+
+  async getDataItem(id: string): Promise<DataItem | null> {
+    try {
+      const numericId = parseInt(id);
+      if (isNaN(numericId)) {
+        console.error('Invalid ID format:', id);
+        return null;
+      }
+
+      const { data, error } = await supabase
+        .from('photo_metadata')
+        .select('*')
+        .eq('id', numericId)
+        .single();
+
+      if (error || !data) {
+        console.error('Error fetching data item:', error?.message, error?.details);
+        return null;
+      }
+
+      return {
+        id: data.id.toString(),
+        userId: data.uploader_id,
+        deviceId: 'web',
+        type: (data.tags?.[0] || 'other') as DataType,
+        name: data.file_name,
+        description: data.description,
+        fileData: data.file_url,
+        fileName: data.file_name,
+        fileType: data.mime_type,
+        fileSize: data.file_size,
+        nfcLink: this.generateNFCLink(data.id.toString(), (data.tags?.[0] || 'other') as DataType),
+        createdAt: new Date(data.uploaded_at),
+        updatedAt: new Date(data.uploaded_at)
+      };
+    } catch (error) {
+      console.error('Error fetching data item:', error);
+      if (error instanceof Error) {
+        console.error('Error details:', error.message, error.stack);
+      }
+      return null;
+    }
+  }
+
+  async updateDataItem(id: string, updates: Partial<DataItem>): Promise<DataItem | null> {
+    try {
+      const numericId = parseInt(id);
+      if (isNaN(numericId)) {
+        console.error('Invalid ID format:', id);
+        return null;
+      }
+
+      const updateData: any = {};
+      if (updates.name) updateData.file_name = updates.name;
+      if (updates.description !== undefined) updateData.description = updates.description;
+      if (updates.type) updateData.tags = [updates.type];
+
+      const { data, error } = await supabase
+        .from('photo_metadata')
+        .update(updateData)
+        .eq('id', numericId)
+        .select()
+        .single();
+
+      if (error || !data) {
+        console.error('Error updating data item:', error?.message, error?.details);
+        return null;
+      }
+
+      return this.getDataItem(id);
+    } catch (error) {
+      console.error('Error updating data item:', error);
+      if (error instanceof Error) {
+        console.error('Error details:', error.message, error.stack);
+      }
+      return null;
+    }
   }
 
   async deleteDataItem(id: string): Promise<boolean> {
-    const { error } = await supabase.from('photo_metadata').delete().eq('id', id);
-    if (error) throw error;
-    return true;
-  }
-
-  async updateDataItemWithFile(
-    id: string,
-    updatedData: Partial<DataItem>,
-    newFile?: File
-  ): Promise<DataItem> {
     try {
-      let fileUrl = updatedData.fileData;
-      let fileName = updatedData.fileName;
-      let fileType = updatedData.fileType;
-      let fileSize = updatedData.fileSize;
-  
-      if (newFile) {
-        fileUrl = await uploadFileToStorage(newFile, updatedData.userId!);
-        fileName = newFile.name;
-        fileType = newFile.type;
-        fileSize = newFile.size;
+      const numericId = parseInt(id);
+      if (isNaN(numericId)) {
+        console.error('Invalid ID format:', id);
+        return false;
       }
-  
-      const updatePayload: any = {
-        file_name: fileName || updatedData.name,
-        file_url: fileUrl || '',
-        file_size: fileSize || 0,
-        mime_type: fileType || 'application/octet-stream',
-        description: updatedData.description || '',
-        tags: [updatedData.type],
-        updated_at: new Date().toISOString()
-      };
-  
-      const { data: dbData, error } = await supabase
+
+      const { error } = await supabase
         .from('photo_metadata')
-        .update(updatePayload)
-        .eq('id', id)
-        .select()
-        .single();
-  
-      if (error || !dbData) throw error || new Error("Failed to update data item");
-  
-      const newItem: DataItem = {
-        id: dbData.id.toString(),
-        userId: updatedData.userId!,
-        deviceId: updatedData.deviceId || getDeviceId(),
-        type: updatedData.type!,
-        name: updatedData.name!,
-        description: updatedData.description || '',
-        fileData: fileUrl || '',
-        fileName,
-        fileType,
-        fileSize,
-        nfcLink: `${window.location.origin}/nfc/${updatedData.type}/${dbData.id}`,
-        createdAt: new Date(dbData.uploaded_at),
-        updatedAt: new Date(dbData.updated_at),
-        isPublic: dbData.is_public
-      };
-  
-      return newItem;
-    } catch (err) {
-      console.error("updateDataItemWithFile error:", err);
-      throw err;
+        .delete()
+        .eq('id', numericId);
+
+      if (error) {
+        console.error('Error deleting data item:', error?.message, error?.details);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error deleting data item:', error);
+      if (error instanceof Error) {
+        console.error('Error details:', error.message, error.stack);
+      }
+      return false;
     }
   }
-} 
+
+  async getDataItemByNFCLink(link: string): Promise<DataItem | null> {
+    // Extract ID from NFC link
+    const matches = link.match(/\/nfc\/[^\/]+\/(.+)$/);
+    if (!matches) return null;
+    
+    const id = matches[1];
+    return this.getDataItem(id);
+  }
+
+  // Add this wrapper so callers using addDataItem keep working
+  public addDataItem(
+    userIdOrPayload: string | { userId: string; deviceId?: string; type: DataType; name: string; description?: string; fileData?: string; fileName?: string; fileType?: string; fileSize?: number },
+    deviceId?: string,
+    type?: DataType,
+    name?: string,
+    description?: string,
+    fileData?: string,
+    fileName?: string,
+    fileType?: string,
+    fileSize?: number
+  ): Promise<DataItem> {
+    if (typeof userIdOrPayload === 'object' && userIdOrPayload !== null) {
+      const p = userIdOrPayload;
+      return this.createDataItem(
+        p.userId,
+        p.deviceId || 'web',
+        p.type,
+        p.name,
+        p.description,
+        p.fileData,
+        p.fileName,
+        p.fileType,
+        p.fileSize
+      );
+    }
+    return this.createDataItem(userIdOrPayload as string, deviceId!, type!, name!, description, fileData, fileName, fileType, fileSize); // Non-null assertion for simplicity, consider adding validation
+  }
+}
+
 export const dataService = new DataService();
