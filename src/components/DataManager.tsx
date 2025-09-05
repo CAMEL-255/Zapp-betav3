@@ -286,7 +286,7 @@ const DataManager: React.FC = () => {
   const handleEditSave = async (updatedData: Partial<DataItem>, newFile?: File) => {
     if (!editingItem) return;
     try {
-      const updatedItem = await dataService.updateDataItemWithFile(editingItem.id, updatedData, newFile);
+      const updatedItem = await dataService.updateDataItem(editingItem.id, updatedData, newFile);
       if (updatedItem) {
         setDataItems((prev) => prev.map((it) => (it.id === editingItem.id ? updatedItem : it)));
         setEditingItem(null);
@@ -505,8 +505,12 @@ const DataManager: React.FC = () => {
               setShowAddModal(false);
               showToast('success', 'Item Added', 'Data item added successfully.');
             } catch (error) {
-              console.error(error);
-              showToast('error', 'Add Failed', 'Failed to add new data item.');
+              console.error('Error adding new data item:', error);
+              let errorMessage = 'Failed to add new data item.';
+              if (error && typeof error === 'object' && 'message' in error) {
+                errorMessage = `Add Failed: ${error.message}`;
+              }
+              showToast('error', 'Add Failed', errorMessage);
             }
           }}
         />

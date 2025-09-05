@@ -339,6 +339,7 @@ class DataService {
       if (updates.name) updateData.file_name = updates.name;
       if (updates.description !== undefined) updateData.description = updates.description;
       if (updates.type) updateData.tags = [updates.type];
+      if (updates.isPublic !== undefined) updateData.is_public = updates.isPublic; // Add this line
 
       const { data, error } = await supabase
         .from('photo_metadata')
@@ -359,6 +360,94 @@ class DataService {
         console.error('Error details:', error.message, error.stack);
       }
       return null;
+    }
+  }
+
+  async updateDataItemWithFile(id: string, updates: Partial<DataItem>, newFile?: File): Promise<DataItem | null> {
+    try {
+      const numericId = parseInt(id);
+      if (isNaN(numericId)) {
+        console.error('Invalid ID format:', id);
+        return null;
+      }
+
+      let publicFileUrl: string | undefined = updates.fileData;
+      let resolvedFileType = updates.fileType || getMimeTypeFromExt(updates.fileName) || undefined;
+
+      if (newFile && updates.userId) {
+        try {
+          publicFileUrl = await uploadFileToStorage(newFile, updates.userId, resolvedFileType);
+          if (!resolvedFileType) {
+            resolvedFileType = newFile.type || getMimeTypeFromExt(newFile.name) || 'application/octet-stream';
+          }
+          updates.fileData = publicFileUrl;
+          updates.fileName = newFile.name;
+          updates.fileSize = newFile.size;
+          updates.fileType = resolvedFileType;
+          updates.isPublic = true; // Mark as public if a new file is uploaded
+        } catch (storageError) {
+          console.warn('Failed to upload new file to storage during update, keeping existing file data:', storageError);
+          // If new file upload fails, revert to existing file data or keep original updates
+        }
+      }
+
+      const updateData: any = {};
+      if (updates.name) updateData.file_name = updates.name;
+      if (updates.description !== undefined) updateData.description = updates.description;
+      if (updates.type) updateData.tags = [updates.type];
+      if (updates.fileData !== undefined) updateData.file_url = updates.fileData;
+      if (updates.fileName !== undefined) updateData.file_name = updates.fileName;
+      if (updates.fileSize !== undefined) updateData.file_size = updates.fileSize;
+      if (updates.fileType !== undefined) updateData.mime_type = updates.fileType;
+      if (updates.isPublic !== undefined) updateData.is_public = updates.isPublic;
+      updateData.updated_at = new Date().toISOString(); // Always update timestamp
+
+      const { data, error } = await supabase
+        .from('photo_metadata')
+        .update(updateData)
+        .eq('id', numericId)
+        .select()
+        .single();
+
+      if (error || !data) {
+        console.error('Error updating data item with file:', error?.message, error?.details);
+        return null;
+      }
+
+      return this.getDataItem(id);
+    } catch (error) {
+      console.error('Error updating data item with file:', error);
+      if (error instanceof Error) {
+        console.error('Error details:', error.message, error.stack);
+      }
+      return null;
+    }
+  }
+
+  async updateLinkStatus(id: string, newStatus: boolean): Promise<void> {
+    try {
+      const numericId = parseInt(id);
+      if (isNaN(numericId)) {
+        console.error('Invalid ID format for link status update:', id);
+        throw new Error('Invalid ID format');
+      }
+
+      const { error } = await supabase
+        .from('photo_metadata')
+        .update({ is_public: newStatus, updated_at: new Date().toISOString() })
+        .eq('id', numericId);
+
+      if (error) {
+        console.error('Error updating link status:', error.message, error.details);
+        throw error;
+      }
+      console.log(`Link status for item ${id} updated to ${newStatus}`);
+    } catch (error) {
+      console.error('Error in updateLinkStatus:', error);
+      if (error instanceof Error) {
+        console.error('Error details:', error.message, error.stack);
+      }
+      throw error;
     }
   }
 
