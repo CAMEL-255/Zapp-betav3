@@ -82,6 +82,27 @@ class DataService {
     fileType?: string,
     fileSize?: number
   ): Promise<DataItem> {
+    // Normalize if caller passed a payload object as first argument
+    if (typeof userId === 'object' && userId !== null) {
+      const p = userId as unknown as { userId: string; deviceId?: string; type?: DataType; name?: string; description?: string; fileData?: string; fileName?: string; fileType?: string; fileSize?: number };
+      // assign extracted values back to parameters
+      userId = p.userId;
+      deviceId = p.deviceId ?? deviceId;
+      type = p.type ?? type;
+      name = p.name ?? name;
+      description = p.description ?? description;
+      fileData = p.fileData ?? fileData;
+      fileName = p.fileName ?? fileName;
+      fileType = p.fileType ?? fileType;
+      fileSize = p.fileSize ?? fileSize;
+    }
+
+    // Quick sanity check
+    if (!userId || typeof userId !== 'string') {
+      console.error('createDataItem: invalid userId after normalization:', userId);
+      throw new Error('Invalid userId');
+    }
+
     try {
       // First ensure user exists in users table
       const { data: userData, error: userError } = await supabase
