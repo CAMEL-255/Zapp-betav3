@@ -79,7 +79,7 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
   const dragControls = useDragControls();
   const typeConfig = getDataTypeConfig(item.type);
   const ref = useRef<HTMLDivElement>(null);
-  const [dragConstraints, setDragConstraints] = useState<{ insetInlineStart: number; right: number; top: number; bottom: number; }>({ insetInlineStart: 0, right: 0, top: 0, bottom: 0 });
+  const [dragConstraints, setDragConstraints] = useState({ left: 0, right: 0, top: 0, bottom: 0 });
 
   const calculateConstraints = () => {
     const cardEl = ref.current;
@@ -91,14 +91,14 @@ const DraggableCard: React.FC<DraggableCardProps> = ({
     const cardRect = cardEl.getBoundingClientRect();
     const containerRect = containerEl.getBoundingClientRect();
     
-    const insetInlineStart = containerRect.left - cardRect.left;
+    const left = containerRect.left - cardRect.left;
     
     let right = 0;
     if (blockEl) {
         right = blockEl.getBoundingClientRect().left - cardRect.right;
     }
 
-    setDragConstraints({ insetInlineStart, right, top: 0, bottom: 0 });
+    setDragConstraints({ left, right, top: 0, bottom: 0 });
   };
 
   const handleDrag = useCallback(
@@ -286,12 +286,24 @@ const DataManager: React.FC = () => {
   const handleEditSave = async (updatedData: Partial<DataItem>, newFile?: File) => {
     if (!editingItem) return;
     try {
-      const updatedItem = await dataService.updateDataItem(editingItem.id, updatedData, newFile);
+      let updatedItem: DataItem | null;
+      if (newFile) {
+        // If a new file is provided, use updateDataItemWithFile
+        updatedItem = await dataService.updateDataItemWithFile(editingItem.id, { ...updatedData, userId: user?.id }, newFile);
+      } else {
+        // Otherwise, use updateDataItem
+        updatedItem = await dataService.updateDataItem(editingItem.id, updatedData);
+      }
+      
       if (updatedItem) {
         setDataItems((prev) => prev.map((it) => (it.id === editingItem.id ? updatedItem : it)));
         setEditingItem(null);
+        showToast('success', 'Item Updated', 'Data item updated successfully.');
+      } else {
+        showToast('error', 'Update Failed', 'Failed to update data.');
       }
-    } catch {
+    } catch (error) {
+      console.error('Error saving edited item:', error);
       showToast('error', 'Update Failed', 'Failed to update data.');
     }
   };
@@ -498,9 +510,25 @@ const DataManager: React.FC = () => {
             if (!data.name) data.name = 'Untitled';
             if (!data.type) data.type = DATA_TYPES[0].id;
             if (!data.userId) data.userId = user?.id || '';
-    
+            
+            // Ensure userId, type, and name are defined before calling addDataItem
+            if (!data.userId || !data.type || !data.name) {
+              showToast('error', 'Add Failed', 'Missing required data for new item.');
+              return;
+            }
+
             try {
-              const newItem = await dataService.addDataItem(data as DataItem);
+              const newItem = await dataService.addDataItem({
+                userId: data.userId,
+                deviceId: data.deviceId,
+                type: data.type,
+                name: data.name,
+                description: data.description,
+                fileData: data.fileData,
+                fileName: data.fileName,
+                fileType: data.fileType,
+                fileSize: data.fileSize,
+              });
               setDataItems((prev) => [newItem, ...prev]);
               setShowAddModal(false);
               showToast('success', 'Item Added', 'Data item added successfully.');
