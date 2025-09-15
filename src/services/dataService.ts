@@ -17,7 +17,7 @@ function getMimeTypeFromExt(fileName?: string): string | null {
 }
 
 // Helper function to upload file to Supabase Storage
-const uploadFileToStorage = async (file: File, userId: string, mimeType?: string): Promise<string> => {
+const uploadFileToStorage = async (file: File, userId: string, mimeType?: string): Promise<{ publicUrl: string; storagePath: string }> => {
   const fileExt = file.name.split('.').pop();
   const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
   const filePath = `${userId}/${fileName}`;
@@ -48,7 +48,10 @@ const uploadFileToStorage = async (file: File, userId: string, mimeType?: string
     throw new Error('Failed to get public URL for the uploaded file.');
   }
 
-  return publicUrlData.publicUrl;
+  return {
+    publicUrl: publicUrlData.publicUrl,
+    storagePath: filePath
+  };
 };
 
 // Helper function to convert base64 to File object
@@ -133,6 +136,7 @@ class DataService {
       }
 
       let publicFileUrl: string | undefined = fileData;
+      let storagePath: string = '';
       // Determine resolved file type (prefer provided fileType, else infer from filename or base64)
       let resolvedFileType = fileType || getMimeTypeFromExt(fileName) || undefined;
 
@@ -140,7 +144,9 @@ class DataService {
       if (fileData && fileName) {
         try {
           const file = base64ToFile(fileData, fileName, resolvedFileType);
-          publicFileUrl = await uploadFileToStorage(file, userId, resolvedFileType);
+          const uploadResult = await uploadFileToStorage(file, userId, resolvedFileType);
+          publicFileUrl = uploadResult.publicUrl;
+          storagePath = uploadResult.storagePath;
           // Ensure mime_type is set for DB insert
           if (!resolvedFileType) {
             resolvedFileType = file.type || getMimeTypeFromExt(fileName) || 'application/octet-stream';
@@ -149,6 +155,7 @@ class DataService {
           console.warn('Failed to upload to storage, using base64 fallback:', storageError);
           // If upload fails, publicFileUrl remains the original fileData (base64)
           // This means the file will be stored as base64 in the database, not as a public URL
+          storagePath = ''; // No storage path for base64 data
         }
       }
 
@@ -157,7 +164,7 @@ class DataService {
         .from('photo_metadata')
         .insert({
           file_name: fileName || name,
-          file_path: publicFileUrl && !fileData?.startsWith('data:') ? `/${userId}/${Date.now()}-${fileName || name}` : null, // Set to null if base64 or no public URL
+          file_path: storagePath || '', // Use actual storage path or empty string
           file_url: publicFileUrl || fileData || '', // Use publicFileUrl if available, else fileData (base64), else empty string
           file_size: fileSize || 0,
           mime_type: resolvedFileType || 'application/octet-stream',
@@ -332,11 +339,13 @@ class DataService {
 
       if (newFile && updates.userId) {
         try {
-          const publicFileUrl = await uploadFileToStorage(newFile, updates.userId, resolvedFileType);
+          const uploadResult = await uploadFileToStorage(newFile, updates.userId, resolvedFileType);
+          const publicFileUrl = uploadResult.publicUrl;
           if (!resolvedFileType) {
             resolvedFileType = newFile.type || getMimeTypeFromExt(newFile.name) || 'application/octet-stream';
           }
           updateData.file_url = publicFileUrl;
+          updateData.file_path = uploadResult.storagePath;
           updateData.file_name = newFile.name;
           updateData.file_size = newFile.size;
           updateData.mime_type = resolvedFileType;
@@ -352,9 +361,10 @@ class DataService {
         updateData.file_url = updates.fileData;
         // If fileData is explicitly set to null/undefined, also clear related file metadata
         if (!updates.fileData) {
-          updateData.file_name = null;
+          updateData.file_name = '';
           updateData.file_size = 0;
-          updateData.mime_type = null;
+          updateData.mime_type = 'application/octet-stream';
+          updateData.file_path = '';
           updateData.is_public = false;
         }
       }
