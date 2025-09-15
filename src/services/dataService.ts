@@ -157,7 +157,7 @@ class DataService {
         .from('photo_metadata')
         .insert({
           file_name: fileName || name,
-          file_path: publicFileUrl && !fileData?.startsWith('data:') ? `/${userId}/${Date.now()}-${fileName || name}` : '', // Set to empty string if base64 or no public URL
+          file_path: publicFileUrl && !fileData?.startsWith('data:') ? `/${userId}/${Date.now()}-${fileName || name}` : null, // Set to null if base64 or no public URL
           file_url: publicFileUrl || fileData || '', // Use publicFileUrl if available, else fileData (base64), else empty string
           file_size: fileSize || 0,
           mime_type: resolvedFileType || 'application/octet-stream',
