@@ -164,7 +164,7 @@ class DataService {
         .from('photo_metadata')
         .insert({
           file_name: fileName || name,
-          file_path: storagePath || '', // Use actual storage path or empty string
+          file_path: storagePath || `/${Date.now()}-${name}`, // Use actual storage path or generate a valid path
           file_url: publicFileUrl || fileData || '', // Use publicFileUrl if available, else fileData (base64), else empty string
           file_size: fileSize || 0,
           mime_type: resolvedFileType || 'application/octet-stream',
@@ -364,7 +364,7 @@ class DataService {
           updateData.file_name = '';
           updateData.file_size = 0;
           updateData.mime_type = 'application/octet-stream';
-          updateData.file_path = '';
+          updateData.file_path = '/empty';
           updateData.is_public = false;
         }
       }
