@@ -20,33 +20,33 @@ function getMimeTypeFromExt(fileName?: string): string | null {
 const uploadFileToStorage = async (file: File, userId: string, mimeType?: string): Promise<{ publicUrl: string; storagePath: string }> => {
   const fileExt = file.name.split('.').pop();
   const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-  const filePath = `${userId}/${fileName}`;
+  const filePath = `${fileName}`; // Remove userId folder structure for now
 
   const { error: uploadError } = await supabase.storage
     .from('photos')
     .upload(filePath, file, {
       cacheControl: '3600',
       upsert: false,
-      contentType: mimeType || file.type || undefined
+      contentType: mimeType || file.type
     });
 
   if (uploadError) {
     console.error('Supabase Storage upload error:', uploadError);
-    throw uploadError;
+    throw new Error(`Storage upload failed: ${uploadError.message}`);
   }
-  console.log(`File ${fileName} uploaded successfully to Supabase Storage.`);
+  
+  console.log(`File ${fileName} uploaded successfully to Supabase Storage at path: ${filePath}`);
 
   // Get the public URL
   const { data: publicUrlData } = supabase.storage
     .from('photos')
     .getPublicUrl(filePath);
 
-  // Supabase getPublicUrl does not return an error object directly,
-  // it returns data.publicUrl as null if the file doesn't exist or isn't public.
-  // We should check publicUrlData.publicUrl for validity.
   if (!publicUrlData || !publicUrlData.publicUrl) {
     throw new Error('Failed to get public URL for the uploaded file.');
   }
+
+  console.log(`Public URL generated: ${publicUrlData.publicUrl}`);
 
   return {
     publicUrl: publicUrlData.publicUrl,
@@ -143,19 +143,20 @@ class DataService {
       // If we have file data, upload it to Supabase Storage for public access
       if (fileData && fileName) {
         try {
+          console.log(`Attempting to upload file: ${fileName} for user: ${userId}`);
           const file = base64ToFile(fileData, fileName, resolvedFileType);
           const uploadResult = await uploadFileToStorage(file, userId, resolvedFileType);
           publicFileUrl = uploadResult.publicUrl;
           storagePath = uploadResult.storagePath;
+          console.log(`File uploaded successfully. Public URL: ${publicFileUrl}, Storage Path: ${storagePath}`);
           // Ensure mime_type is set for DB insert
           if (!resolvedFileType) {
             resolvedFileType = file.type || getMimeTypeFromExt(fileName) || 'application/octet-stream';
           }
         } catch (storageError) {
-          console.warn('Failed to upload to storage, using base64 fallback:', storageError);
-          // If upload fails, publicFileUrl remains the original fileData (base64)
-          // This means the file will be stored as base64 in the database, not as a public URL
-          storagePath = ''; // No storage path for base64 data
+          console.error('Failed to upload to storage:', storageError);
+          // Re-throw the error instead of silently falling back
+          throw new Error(`File upload to storage failed: ${storageError instanceof Error ? storageError.message : 'Unknown error'}`);
         }
       }
 
@@ -164,14 +165,14 @@ class DataService {
         .from('photo_metadata')
         .insert({
           file_name: fileName || name,
-          file_path: storagePath || `/${Date.now()}-${name}`, // Use actual storage path or generate a valid path
-          file_url: publicFileUrl || fileData || '', // Use publicFileUrl if available, else fileData (base64), else empty string
+          file_path: storagePath ? `/${storagePath}` : `/${Date.now()}-${name}`, // Ensure path starts with /
+          file_url: publicFileUrl || '', // Use publicFileUrl from storage
           file_size: fileSize || 0,
           mime_type: resolvedFileType || 'application/octet-stream',
           uploader_id: userId,
           description: description,
           tags: [type],
-          is_public: !!fileData // Mark as public if any fileData (URL or base64) exists
+          is_public: !!publicFileUrl // Mark as public only if we have a storage URL
         })
         .select()
         .single(); // Keep single here, as we expect a single item to be inserted
@@ -339,21 +340,22 @@ class DataService {
 
       if (newFile && updates.userId) {
         try {
+          console.log(`Attempting to upload new file: ${newFile.name} for user: ${updates.userId}`);
           const uploadResult = await uploadFileToStorage(newFile, updates.userId, resolvedFileType);
           const publicFileUrl = uploadResult.publicUrl;
+          console.log(`New file uploaded successfully. Public URL: ${publicFileUrl}`);
           if (!resolvedFileType) {
             resolvedFileType = newFile.type || getMimeTypeFromExt(newFile.name) || 'application/octet-stream';
           }
           updateData.file_url = publicFileUrl;
-          updateData.file_path = uploadResult.storagePath;
+          updateData.file_path = `/${uploadResult.storagePath}`;
           updateData.file_name = newFile.name;
           updateData.file_size = newFile.size;
           updateData.mime_type = resolvedFileType;
           updateData.is_public = true; // Mark as public if a new file is uploaded
         } catch (storageError) {
-          console.warn('Failed to upload new file to storage during update, keeping existing file data:', storageError);
-          // If new file upload fails, we don't update file_url, file_name, etc.
-          // The existing file data in the DB will be retained.
+          console.error('Failed to upload new file to storage during update:', storageError);
+          throw new Error(`File upload failed: ${storageError instanceof Error ? storageError.message : 'Unknown error'}`);
         }
       } else if (updates.fileData !== undefined) {
         // If no new file is uploaded, but fileData is explicitly provided in updates, use it.
