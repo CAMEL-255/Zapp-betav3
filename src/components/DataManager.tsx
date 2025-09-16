@@ -286,14 +286,7 @@ const DataManager: React.FC = () => {
   const handleEditSave = async (updatedData: Partial<DataItem>, newFile?: File) => {
     if (!editingItem) return;
     try {
-      let updatedItem: DataItem | null;
-      if (newFile) {
-        // If a new file is provided, use updateDataItemWithFile
-        updatedItem = await dataService.updateDataItemWithFile(editingItem.id, { ...updatedData, userId: user?.id }, newFile);
-      } else {
-        // Otherwise, use updateDataItem
-        updatedItem = await dataService.updateDataItem(editingItem.id, updatedData);
-      }
+      const updatedItem = await dataService.updateDataItem(editingItem.id, updatedData, newFile);
       
       if (updatedItem) {
         setDataItems((prev) => prev.map((it) => (it.id === editingItem.id ? updatedItem : it)));
