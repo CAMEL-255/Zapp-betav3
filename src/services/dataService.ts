@@ -20,7 +20,7 @@ function getMimeTypeFromExt(fileName?: string): string | null {
 const uploadFileToStorage = async (file: File, userId: string, mimeType?: string): Promise<{ publicUrl: string; storagePath: string }> => {
   const fileExt = file.name.split('.').pop();
   const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-  const filePath = `${fileName}`; // Remove userId folder structure for now
+  const filePath = `${userId}/${fileName}`; // Organize files in user folders
 
   const { error: uploadError } = await supabase.storage
     .from('photos')
